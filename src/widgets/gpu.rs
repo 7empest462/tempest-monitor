@@ -1,7 +1,6 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem},
     Frame,
 };
 
@@ -24,10 +23,10 @@ fn render_gpu_info(f: &mut Frame, app: &App, area: Rect) {
     let mut items = Vec::new();
     items.push(ListItem::new(format!(" Model: {}", app.gpu_model)));
     
-    let usage_text = if app.gpu_usage > 0.0 {
+    let usage_text = if app.gpu_usage >= 0.0 {
         format!(" Usage: {:.1}%", app.gpu_usage)
     } else {
-        " Usage: N/A (Run as sudo for real-time stats)".to_string()
+        " Usage: N/A (Run as sudo for real-time stats or check permissions)".to_string()
     };
     items.push(ListItem::new(usage_text));
 

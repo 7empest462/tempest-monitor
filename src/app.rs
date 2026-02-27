@@ -249,7 +249,7 @@ impl App {
                 #[cfg(not(target_os = "macos"))]
                 { "Generic / Integrated GPU".to_string() }
             },
-            gpu_usage: 0.0,
+            gpu_usage: -1.0,
 
             #[cfg(target_os = "macos")]
             compressed_mem_cache: HashMap::new(),
@@ -429,7 +429,8 @@ impl App {
             {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 for line in stdout.lines() {
-                    if line.contains("GPU use:") {
+                    // Support both "GPU use:" and "GPU HW active residency:"
+                    if line.contains("GPU use:") || line.contains("GPU HW active residency:") {
                         if let Some(pct_str) = line.split(':').nth(1) {
                             if let Some(pct) = pct_str.trim().trim_end_matches('%').parse::<f64>().ok() {
                                 self.gpu_usage = pct;
