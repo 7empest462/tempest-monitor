@@ -453,7 +453,7 @@ impl App {
                     }
                 }
             }
-            Self::push_history(&mut self.gpu_history, self.gpu_usage as u64);
+            Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
         }
 
         #[cfg(target_os = "linux")]
