@@ -162,6 +162,10 @@ pub struct App {
     #[cfg(target_os = "macos")]
     pub compressed_mem_cache: HashMap<sysinfo::Pid, u64>,
 
+    // Timing
+    pub tick_rate: Duration,
+    pub last_update: Instant,
+
     // Last refresh timestamps for throttling
     pub last_process_refresh: Instant,
     pub last_disk_refresh: Instant,
@@ -265,7 +269,11 @@ impl App {
         };
 
         if now.duration_since(self.last_process_refresh) >= proc_timeout {
-            self.sys.refresh_processes_specifics(ProcessRefreshKind::everything());
+            self.sys.refresh_processes_specifics(
+                sysinfo::ProcessesToUpdate::All,
+                true,
+                ProcessRefreshKind::everything(),
+            );
             self.last_process_refresh = now;
 
             // Expensive macOS memory calculations are bundled with process refresh
