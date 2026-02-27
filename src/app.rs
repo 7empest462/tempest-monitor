@@ -152,6 +152,7 @@ pub struct App {
     pub swap_history: VecDeque<u64>,          // SWAP % (0–100)
     pub net_rx_history: VecDeque<u64>,        // bytes/s received (total)
     pub net_tx_history: VecDeque<u64>,        // bytes/s transmitted (total)
+    pub gpu_history: VecDeque<u64>,           // GPU % (0-100)
 
     // Processes
     pub sort_mode: SortMode,
@@ -225,6 +226,7 @@ impl App {
             swap_history: VecDeque::with_capacity(HISTORY_LEN),
             net_rx_history: VecDeque::with_capacity(HISTORY_LEN),
             net_tx_history: VecDeque::with_capacity(HISTORY_LEN),
+            gpu_history: VecDeque::with_capacity(HISTORY_LEN),
 
             sort_mode: SortMode::Cpu,
             sort_direction: SortDirection::Desc,
@@ -451,6 +453,7 @@ impl App {
                     }
                 }
             }
+            Self::push_history(&mut self.gpu_history, self.gpu_usage as u64);
         }
 
         #[cfg(target_os = "linux")]
