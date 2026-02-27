@@ -18,6 +18,10 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 - 🧠 **Memory Tracking**: RAM and SWAP usage with detailed breakdowns. Includes **compressed memory** reporting for macOS.
 - 📂 **Disk I/O**: Live monitoring of disk read/write activities.
 - 🌐 **Network traffic**: History of received and transmitted data across all interfaces.
+- 🌡 **Thermal Monitoring**: 
+  - Real-time tracking of PMU, CPU, Battery, and NAND sensors.
+  - Monitors both **current** and **maximum** recorded temperatures.
+  - Heat-aware color coding: Sensors transition from 🟢 to 🟡 and 🔴 as they approach their maximum safe thresholds.
 - 🔋 **Battery Status**: Percent, state, and time remaining (if applicable).
 - 🛠 **Process Management**:
   - Sort by CPU, Memory, PID, Name, Disk I/O, or Virtual Memory.
@@ -35,8 +39,8 @@ Tempest Monitor is designed for both speed and depth. You can quickly switch bet
 You can move through the different tabs using numeric keys or cycling:
 
 - **Direct Switch**: Press keys `1` through `6` to jump directly to a tab:
-  - `1`: **Overview** - A high-level dashboard of everything at once.
-  - `2`: **CPU** - Detailed per-core usage and frequency tracking.
+  - `1`: **Overview** - A high-level dashboard of everything at once, including **live temperature readings** and battery health.
+  - `2`: **CPU** - Detailed per-core usage, frequency tracking, and **comprehensive thermal data** (current vs max temperatures).
   - `3`: **Memory** - Deep dive into RAM, SWAP, and macOS compressed memory.
   - `4`: **Disks** - Live monitoring of all mounted volumes and I/O.
   - `5`: **Network** - Per-interface traffic stats and history.
