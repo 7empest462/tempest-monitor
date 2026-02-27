@@ -1,4 +1,4 @@
-# Tempest Monitor ⚡️
+# Tempest Monitor ⚡️ [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built with Rust.
 
@@ -52,14 +52,14 @@ You can move through the different tabs using numeric keys or cycling:
 
 The Processes tab is the most powerful part of the monitor:
 
-1. **Active Sorting**: Use `F1`-`F6` to instantly sort by different metrics (CPU, MEM, PID, Name, etc.). Pressing the same key twice flips the order (Ascending/Descending).
-2. **Real-time Filtering**: Simply start typing anywhere on the Processes tab. The list will filter as you type.
-   - **Regex Mode**: Press `r` to toggle Regular Expression mode for advanced searches.
-   - **Clear Filter**: Press `/` or `Esc` to clear the current search.
-3. **Control (k)**: Press `k` on a highlighted process to open the **Signal Menu**. From here, you can send `SIGTERM`, `SIGKILL`, `SIGSTOP`, etc., to manage unresponsive apps.
-4. **Views**: 
-   - Press `t` to toggle **Tree View**, showing which processes spawned others.
-   - Press `d` to toggle the **Detail Panel** for a deep look at a single process's metadata.
+1.  **Active Sorting**: Use `F1`-`F6` to instantly sort by different metrics (CPU, MEM, PID, Name, etc.). Pressing the same key twice flips the order (Ascending/Descending).
+2.  **Real-time Filtering**: Simply start typing anywhere on the Processes tab. The list will filter as you type.
+    -   **Regex Mode**: Press `r` to toggle Regular Expression mode for advanced searches.
+    -   **Clear Filter**: Press `/` or `Esc` to clear the current search.
+3.  **Control (k)**: Press `k` on a highlighted process to open the **Signal Menu**. From here, you can send `SIGTERM`, `SIGKILL`, `SIGSTOP`, etc., to manage unresponsive apps.
+4.  **Views**: 
+    -   Press `t` to toggle **Tree View**, showing which processes spawned others.
+    -   Press `d` to toggle the **Detail Panel** for a deep look at a single process's metadata.
 
 ## Controls
 
@@ -97,5 +97,9 @@ cargo build --release
 ## Automations
 
 This project uses **GitHub Actions** to automatically build binaries for both macOS and Linux on every push. You can find the latest builds in the "Actions" tab of this repository.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
