@@ -422,17 +422,28 @@ impl App {
     fn refresh_gpu(&mut self) {
         #[cfg(target_os = "macos")]
         {
-            // Use powermetrics if available (requires sudo)
-            if let Ok(output) = std::process::Command::new("sudo")
-                .args(["powermetrics", "--samplers", "gpu_power", "-n", "1", "-i", "1"])
+            // Detection: powermetrics requires root. If we aren't root, we must use sudo.
+            let is_root = unsafe { libc::getuid() } == 0;
+            let mut cmd = if is_root {
+                std::process::Command::new("powermetrics")
+            } else {
+                let mut c = std::process::Command::new("sudo");
+                c.arg("powermetrics");
+                c
+            };
+
+            if let Ok(output) = cmd
+                .args(["--samplers", "gpu_power", "-n", "1", "-i", "1"])
                 .output()
             {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 for line in stdout.lines() {
-                    // Support both "GPU use:" and "GPU HW active residency:"
-                    if line.contains("GPU use:") || line.contains("GPU HW active residency:") {
-                        if let Some(pct_str) = line.split(':').nth(1) {
-                            if let Some(pct) = pct_str.trim().trim_end_matches('%').parse::<f64>().ok() {
+                    // M4/M1/M2/M3 use different labels: "GPU use", "GPU HW active residency", etc.
+                    if line.contains("GPU ") && line.contains('%') {
+                        if let Some(pct_idx) = line.find('%') {
+                            // Look backwards for the start of the number (space or colon)
+                            let start = line[..pct_idx].rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
+                            if let Ok(pct) = line[start..pct_idx].trim().parse::<f64>() {
                                 self.gpu_usage = pct;
                                 break;
                             }
