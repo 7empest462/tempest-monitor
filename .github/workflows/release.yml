@@ -1,0 +1,40 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    name: Build for Linux (musl)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        uses: cross-rs/github-action@v1
+        with:
+          target: x86_64-unknown-linux-musl
+          args: --release
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tempest-monitor-linux-musl
+          path: target/x86_64-unknown-linux-musl/release/tempest-monitor
+
+  build-macos:
+    name: Build for macOS (Silicon)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --release
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tempest-monitor-macos
+          path: target/release/tempest-monitor
