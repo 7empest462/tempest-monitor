@@ -159,12 +159,12 @@ pub struct App {
     pub signal_menu_open: bool,
     pub selected_signal: usize,
 
-    // Timing
-    pub tick_rate: Duration,
-    pub last_update: Instant,
-
     #[cfg(target_os = "macos")]
     pub compressed_mem_cache: HashMap<sysinfo::Pid, u64>,
+
+    // Last refresh timestamps for throttling
+    pub last_process_refresh: Instant,
+    pub last_disk_refresh: Instant,
 }
 
 impl App {
@@ -227,6 +227,8 @@ impl App {
 
             tick_rate: Duration::from_millis(500),
             last_update: Instant::now() - Duration::from_secs(10), // force immediate first refresh
+            last_process_refresh: Instant::now() - Duration::from_secs(10),
+            last_disk_refresh: Instant::now() - Duration::from_secs(10),
 
             #[cfg(target_os = "macos")]
             compressed_mem_cache: HashMap::new(),
@@ -247,14 +249,45 @@ impl App {
             return;
         }
 
-        let rk = RefreshKind::nothing()
-            .with_cpu(CpuRefreshKind::everything())
-            .with_memory(MemoryRefreshKind::everything())
-            .with_processes(ProcessRefreshKind::everything());
+        let now = Instant::now();
 
-        self.sys.refresh_specifics(rk);
+        // 1. FAST REFRESH: CPU and Memory (needed for sparklines and gauges)
+        let rk_fast = RefreshKind::nothing()
+            .with_cpu(CpuRefreshKind::everything())
+            .with_memory(MemoryRefreshKind::everything());
+        self.sys.refresh_specifics(rk_fast);
+
+        // 2. THROTTLED REFRESH: Processes (every 3 seconds, or 1 second if on Processes tab)
+        let proc_timeout = if self.active_tab == ActiveTab::Processes {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_secs(5)
+        };
+
+        if now.duration_since(self.last_process_refresh) >= proc_timeout {
+            self.sys.refresh_processes_specifics(ProcessRefreshKind::everything());
+            self.last_process_refresh = now;
+
+            // Expensive macOS memory calculations are bundled with process refresh
+            #[cfg(target_os = "macos")]
+            {
+                self.compressed_mem_cache.clear();
+                for pid in self.sys.processes().keys() {
+                    if let Some(info) = crate::macos_helper::get_process_memory_info(pid.as_u32() as i32) {
+                        self.compressed_mem_cache.insert(*pid, info.compressed);
+                    }
+                }
+            }
+        }
+
+        // 3. THROTTLED REFRESH: Disks (every 10 seconds)
+        if now.duration_since(self.last_disk_refresh) >= Duration::from_secs(10) {
+            self.disks.refresh(true);
+            self.last_disk_refresh = now;
+        }
+
+        // 4. ALWAYS REFRESH: Networks and Components (sensors)
         self.networks.refresh(true);
-        self.disks.refresh(true);
         self.components.refresh(true);
 
         // CPU history
@@ -329,18 +362,7 @@ impl App {
             }
         }
 
-        // Update compressed memory cache for macOS
-        #[cfg(target_os = "macos")]
-        {
-            self.compressed_mem_cache.clear();
-            for pid in self.sys.processes().keys() {
-                if let Some(info) = crate::macos_helper::get_process_memory_info(pid.as_u32() as i32) {
-                    self.compressed_mem_cache.insert(*pid, info.compressed);
-                }
-            }
-        }
-
-        self.last_update = Instant::now();
+        self.last_update = now;
     }
 
     /// Get tick rate in human-readable format.
