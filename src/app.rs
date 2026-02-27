@@ -306,8 +306,12 @@ impl App {
                     let percent = bat.state_of_charge().get::<battery::units::ratio::percent>() as f64;
                     
                     // Sanity check for macOS "Unknown" state when plugged in
-                    let state_str = if format!("{:?}", state) == "Unknown" && percent > 95.0 {
-                        "Full / Plugged In".to_string()
+                    let state_str = if format!("{:?}", state) == "Unknown" {
+                        if percent > 95.0 {
+                            "Full / Plugged In".to_string()
+                        } else {
+                            "Plugged In / Not Charging".to_string()
+                        }
                     } else {
                         format!("{:?}", state)
                     };
