@@ -4,14 +4,12 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 ## Gallery
 
-<p align="center">
-  <img src="README_assets/screenshots/overview.png" width="45%" />
-  <img src="README_assets/screenshots/cpu.png" width="45%" />
-  <img src="README_assets/screenshots/memory.png" width="45%" />
-  <img src="README_assets/screenshots/disks.png" width="45%" />
-  <img src="README_assets/screenshots/network.png" width="45%" />
-  <img src="README_assets/screenshots/processes.png" width="45%" />
-</p>
+![Overview](README_assets/screenshots/overview.png)
+![CPU](README_assets/screenshots/cpu.png)
+![Memory](README_assets/screenshots/memory.png)
+![Disks](README_assets/screenshots/disks.png)
+![Network](README_assets/screenshots/network.png)
+![Processes](README_assets/screenshots/processes.png)
 
 ## Features
 
@@ -97,4 +95,3 @@ cargo build --release
 This project uses **GitHub Actions** to automatically build binaries for both macOS and Linux on every push. You can find the latest builds in the "Actions" tab of this repository.
 
 ---
-Built with ❤️ for 7empest.
