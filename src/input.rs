@@ -32,6 +32,7 @@ fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         KeyCode::Char('4') => app.active_tab = ActiveTab::Disks,
         KeyCode::Char('5') => app.active_tab = ActiveTab::Network,
         KeyCode::Char('6') => app.active_tab = ActiveTab::Processes,
+        KeyCode::Char('7') => app.active_tab = ActiveTab::Gpu,
 
         // Tab cycling
         KeyCode::Tab => {

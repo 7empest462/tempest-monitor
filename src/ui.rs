@@ -65,7 +65,7 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     let help_text = format!(
-        " [q] Quit │ [?] Help │ [Space] {} │ [+/-] Rate: {} │ Keys 1-6 switch tabs",
+        " [q] Quit │ [?] Help │ [Space] {} │ [+/-] Rate: {} │ Keys 1-7 switch tabs",
         if app.paused { "Resume" } else { "Pause" },
         app.tick_rate_label()
     );

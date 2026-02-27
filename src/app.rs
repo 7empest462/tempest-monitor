@@ -47,12 +47,12 @@ impl ActiveTab {
 
     pub fn label(self) -> &'static str {
         match self {
-            ActiveTab::Overview => "Overview",
+            ActiveTab::Overview => "Overvw",
             ActiveTab::Cpu => "CPU",
-            ActiveTab::Memory => "Memory",
-            ActiveTab::Disks => "Disks",
-            ActiveTab::Network => "Network",
-            ActiveTab::Processes => "Processes",
+            ActiveTab::Memory => "Mem",
+            ActiveTab::Disks => "Disk",
+            ActiveTab::Network => "Net",
+            ActiveTab::Processes => "Proc",
             ActiveTab::Gpu => "GPU",
         }
     }
