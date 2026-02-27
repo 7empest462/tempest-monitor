@@ -19,16 +19,18 @@ pub enum ActiveTab {
     Disks,
     Network,
     Processes,
+    Gpu,
 }
 
 impl ActiveTab {
-    pub const ALL: [ActiveTab; 6] = [
+    pub const ALL: [ActiveTab; 7] = [
         ActiveTab::Overview,
         ActiveTab::Cpu,
         ActiveTab::Memory,
         ActiveTab::Disks,
         ActiveTab::Network,
         ActiveTab::Processes,
+        ActiveTab::Gpu,
     ];
 
     pub fn index(self) -> usize {
@@ -39,6 +41,7 @@ impl ActiveTab {
             ActiveTab::Disks => 3,
             ActiveTab::Network => 4,
             ActiveTab::Processes => 5,
+            ActiveTab::Gpu => 6,
         }
     }
 
@@ -50,6 +53,7 @@ impl ActiveTab {
             ActiveTab::Disks => "Disks",
             ActiveTab::Network => "Network",
             ActiveTab::Processes => "Processes",
+            ActiveTab::Gpu => "GPU",
         }
     }
 }
@@ -128,6 +132,9 @@ pub struct App {
     pub networks: Networks,
     pub disks: Disks,
     pub components: Components,
+    pub load_avg: (f64, f64, f64),
+    pub gpu_model: String,
+    pub gpu_usage: f64,
 
     // Battery
     pub battery_manager: Option<battery::Manager>,
@@ -169,6 +176,7 @@ pub struct App {
     // Last refresh timestamps for throttling
     pub last_process_refresh: Instant,
     pub last_disk_refresh: Instant,
+    pub last_gpu_refresh: Instant,
 }
 
 impl App {
@@ -233,6 +241,15 @@ impl App {
             last_update: Instant::now() - Duration::from_secs(10), // force immediate first refresh
             last_process_refresh: Instant::now() - Duration::from_secs(10),
             last_disk_refresh: Instant::now() - Duration::from_secs(10),
+            last_gpu_refresh: Instant::now() - Duration::from_secs(10),
+            load_avg: (0.0, 0.0, 0.0),
+            gpu_model: {
+                #[cfg(target_os = "macos")]
+                { "Apple M4".to_string() }
+                #[cfg(not(target_os = "macos"))]
+                { "Generic / Integrated GPU".to_string() }
+            },
+            gpu_usage: 0.0,
 
             #[cfg(target_os = "macos")]
             compressed_mem_cache: HashMap::new(),
@@ -260,6 +277,10 @@ impl App {
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::everything());
         self.sys.refresh_specifics(rk_fast);
+        
+        // Refresh load average
+        let load = System::load_average();
+        self.load_avg = (load.one, load.five, load.fifteen);
 
         // 2. THROTTLED REFRESH: Processes (every 3 seconds, or 1 second if on Processes tab)
         let proc_timeout = if self.active_tab == ActiveTab::Processes {
@@ -294,7 +315,13 @@ impl App {
             self.last_disk_refresh = now;
         }
 
-        // 4. ALWAYS REFRESH: Networks and Components (sensors)
+        // 4. THROTTLED REFRESH: GPU (every 2 seconds)
+        if now.duration_since(self.last_gpu_refresh) >= Duration::from_secs(2) {
+            self.refresh_gpu();
+            self.last_gpu_refresh = now;
+        }
+
+        // 5. ALWAYS REFRESH: Networks and Components (sensors)
         self.networks.refresh(true);
         self.components.refresh(true);
 
@@ -388,6 +415,47 @@ impl App {
         {
             let _ = pid;
             0
+        }
+    }
+
+    /// Refresh GPU usage data.
+    fn refresh_gpu(&mut self) {
+        #[cfg(target_os = "macos")]
+        {
+            // Use powermetrics if available (requires sudo)
+            if let Ok(output) = std::process::Command::new("sudo")
+                .args(["powermetrics", "--samplers", "gpu_power", "-n", "1", "-i", "1"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    if line.contains("GPU use:") {
+                        if let Some(pct_str) = line.split(':').nth(1) {
+                            if let Some(pct) = pct_str.trim().trim_end_matches('%').parse::<f64>().ok() {
+                                self.gpu_usage = pct;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Try common sysfs paths for GPU usage
+            let paths = [
+                "/sys/class/drm/card0/device/gpu_busy_percent",
+                "/sys/class/drm/card1/device/gpu_busy_percent",
+            ];
+            for path in paths {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if let Ok(pct) = content.trim().parse::<f64>() {
+                        self.gpu_usage = pct;
+                        break;
+                    }
+                }
+            }
         }
     }
 }

@@ -59,6 +59,7 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
         ActiveTab::Disks => widgets::disk::render(f, app, area),
         ActiveTab::Network => widgets::network::render(f, app, area),
         ActiveTab::Processes => widgets::processes::render(f, app, area),
+        ActiveTab::Gpu => widgets::gpu::render(f, app, area),
     }
 }
 

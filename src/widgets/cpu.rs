@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
-    widgets::{Block, Borders, Gauge, List, ListItem, Sparkline},
+    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Sparkline},
     Frame,
 };
 
@@ -12,15 +12,33 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),  // Overall CPU sparkline
+            Constraint::Length(3), // Load averages
+            Constraint::Length(5), // Overall CPU sparkline
             Constraint::Min(0),    // Per-core bars
             Constraint::Length(6), // Temperature sensors
         ])
         .split(area);
 
-    render_overall_sparkline(f, app, chunks[0]);
-    render_core_bars(f, app, chunks[1]);
-    render_temperatures(f, app, chunks[2]);
+    render_load_averages(f, app, chunks[0]);
+    render_overall_sparkline(f, app, chunks[1]);
+    render_core_bars(f, app, chunks[2]);
+    render_temperatures(f, app, chunks[3]);
+}
+
+fn render_load_averages(f: &mut Frame, app: &App, area: Rect) {
+    let (one, five, fifteen) = app.load_avg;
+    let text = format!(
+        " 1 min: {one:.2} │ 5 min: {five:.2} │ 15 min: {fifteen:.2} ",
+    );
+    let p = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title(" Load Averages ")
+                .title_style(theme::style_title())
+                .borders(Borders::ALL)
+                .border_style(theme::style_border()),
+        );
+    f.render_widget(p, area);
 }
 
 fn render_overall_sparkline(f: &mut Frame, app: &App, area: Rect) {

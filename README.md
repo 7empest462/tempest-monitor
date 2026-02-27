@@ -18,11 +18,23 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 - 🧠 **Memory Tracking**: RAM and SWAP usage with detailed breakdowns. Includes **compressed memory** reporting for macOS.
 - 📂 **Disk I/O**: Live monitoring of disk read/write activities.
 - 🌐 **Network traffic**: History of received and transmitted data across all interfaces.
-- 🌡 **Thermal Monitoring**: 
-  - Real-time tracking of PMU, CPU, Battery, and NAND sensors.
-  - Monitors both **current** and **maximum** recorded temperatures.
-  - Heat-aware color coding: Sensors transition from 🟢 to 🟡 and 🔴 as they approach their maximum safe thresholds.
-- 🔋 **Battery Status**: Percent, state, and time remaining (if applicable).
+## 🔋 Battery & Hardware Monitoring
+
+- **Battery Status**: Shows percentage, state (Charging/Discharging), and time remaining.
+- **Thermal Sensors**: Monitors temperatures across various system components.
+- **GPU Monitoring**: Dedicated tab for GPU model and utilization (requires sudo for real-time stats).
+
+## 🛡️ High-Privilege Monitoring
+
+Some advanced features require elevated privileges to access hardware statistics:
+- **GPU Utilization**: On macOS, `powermetrics` requires `sudo`.
+- **Compressed Memory**: On macOS, accessing memory details for all processes requires `sudo`.
+
+To run without typing your password every time, you can add this to your `/etc/sudoers` (using `visudo`):
+```text
+your_username ALL=(ALL) NOPASSWD: /path/to/tempest-monitor
+```
+
 - 🛠 **Process Management**:
   - Sort by CPU, Memory, PID, Name, Disk I/O, or Virtual Memory.
   - Interactive **Signal Menu** (SIGTERM, SIGKILL, etc.).
