@@ -302,10 +302,19 @@ impl App {
         if let Some(ref mgr) = self.battery_manager {
             if let Ok(mut batteries) = mgr.batteries() {
                 if let Some(Ok(bat)) = batteries.next() {
+                    let state = bat.state();
+                    let percent = bat.state_of_charge().get::<battery::units::ratio::percent>() as f64;
+                    
+                    // Sanity check for macOS "Unknown" state when plugged in
+                    let state_str = if format!("{:?}", state) == "Unknown" && percent > 95.0 {
+                        "Full / Plugged In".to_string()
+                    } else {
+                        format!("{:?}", state)
+                    };
+
                     self.battery_info = Some(BatteryInfo {
-                        percent: bat.state_of_charge().get::<battery::units::ratio::percent>()
-                            as f64,
-                        state: format!("{:?}", bat.state()),
+                        percent,
+                        state: state_str,
                         time_remaining: bat.time_to_empty().map(|t| {
                             Duration::from_secs(
                                 t.get::<battery::units::time::second>() as u64,

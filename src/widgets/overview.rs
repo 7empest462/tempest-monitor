@@ -238,6 +238,9 @@ fn render_sensors_battery(f: &mut Frame, app: &App, area: Rect) {
     let mut sensor_text = String::new();
     for comp in app.components.iter() {
         let temp = comp.temperature().unwrap_or(0.0);
+        if temp <= 0.0 {
+            continue;
+        }
         let label = comp.label();
         sensor_text.push_str(&format!(" {label}: {temp:.1}°C\n"));
     }

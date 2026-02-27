@@ -95,7 +95,7 @@ fn render_temperatures(f: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app
         .components
         .iter()
-        .filter(|c| c.temperature().is_some())
+        .filter(|c| c.temperature().map(|t| t > 0.0).unwrap_or(false))
         .map(|c| {
             let temp = c.temperature().unwrap_or(0.0);
             let max = c.max().unwrap_or(100.0);
