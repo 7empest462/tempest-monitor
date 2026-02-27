@@ -40,7 +40,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" 7EMPEST FLEET MONITOR v0.2.1-FIX ")
+                .title(" 7EMPEST FLEET MONITOR v0.2.1 ")
                 .title_style(theme::style_title())
                 .border_style(theme::style_border()),
         )
