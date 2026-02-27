@@ -2,7 +2,16 @@
 
 A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built with Rust.
 
-![Tempest Monitor Mockup](https://github.com/7empest462/tempest-monitor/blob/master/README_assets/tempest_monitor_mockup.png?raw=true)
+## Gallery
+
+<p align="center">
+  <img src="README_assets/screenshots/overview.png" width="45%" />
+  <img src="README_assets/screenshots/cpu.png" width="45%" />
+  <img src="README_assets/screenshots/memory.png" width="45%" />
+  <img src="README_assets/screenshots/disks.png" width="45%" />
+  <img src="README_assets/screenshots/network.png" width="45%" />
+  <img src="README_assets/screenshots/processes.png" width="45%" />
+</p>
 
 ## Features
 
