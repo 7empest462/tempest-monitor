@@ -28,11 +28,42 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
   - Powerful **Regex Filtering** to find exactly what you need.
 - 🚀 **Cross-Platform**: Fully supports macOS (Apple Silicon native) and Linux (via statically linked musl binaries).
 
+## Usage Guide
+
+Tempest Monitor is designed for both speed and depth. You can quickly switch between views or dive into individual processes.
+
+### Dashboard Navigation
+
+You can move through the different tabs using numeric keys or cycling:
+
+- **Direct Switch**: Press keys `1` through `6` to jump directly to a tab:
+  - `1`: **Overview** - A high-level dashboard of everything at once.
+  - `2`: **CPU** - Detailed per-core usage and frequency tracking.
+  - `3`: **Memory** - Deep dive into RAM, SWAP, and macOS compressed memory.
+  - `4`: **Disks** - Live monitoring of all mounted volumes and I/O.
+  - `5`: **Network** - Per-interface traffic stats and history.
+  - `6`: **Processes** - The interactive task manager and signal menu.
+- **Tab Cycling**: Use `Tab` (forward) or `Shift+Tab` (backward) to move through the views sequentially.
+- **Mouse Support**: You can also click the tab headers or use the mouse wheel to scroll through lists.
+
+### Advanced Process Management (Tab 6)
+
+The Processes tab is the most powerful part of the monitor:
+
+1. **Active Sorting**: Use `F1`-`F6` to instantly sort by different metrics (CPU, MEM, PID, Name, etc.). Pressing the same key twice flips the order (Ascending/Descending).
+2. **Real-time Filtering**: Simply start typing anywhere on the Processes tab. The list will filter as you type.
+   - **Regex Mode**: Press `r` to toggle Regular Expression mode for advanced searches.
+   - **Clear Filter**: Press `/` or `Esc` to clear the current search.
+3. **Control (k)**: Press `k` on a highlighted process to open the **Signal Menu**. From here, you can send `SIGTERM`, `SIGKILL`, `SIGSTOP`, etc., to manage unresponsive apps.
+4. **Views**: 
+   - Press `t` to toggle **Tree View**, showing which processes spawned others.
+   - Press `d` to toggle the **Detail Panel** for a deep look at a single process's metadata.
+
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| `1`-`6` | Switch between tabs (Overview, CPU, Mem, Disks, Net, Proc) |
+| `1`-`6` | Switch between tabs |
 | `Tab` / `Shift+Tab` | Cycle through tabs |
 | `q` / `Ctrl+C` | Quit |
 | `?` | Toggle help menu |
