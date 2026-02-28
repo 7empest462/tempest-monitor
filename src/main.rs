@@ -50,18 +50,20 @@ fn run_app(
     mut app: App,
 ) -> io::Result<()> {
     loop {
-        // Periodic refresh
-        if app.last_update.elapsed() >= app.tick_rate {
-            app.refresh();
-        }
-
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        // Input handling
-        if event::poll(Duration::from_millis(10))? {
+        let timeout = app.tick_rate
+            .checked_sub(app.last_update.elapsed())
+            .unwrap_or(Duration::from_secs(0));
+
+        if event::poll(timeout)? {
             if input::handle_event(event::read()?, &mut app) {
                 return Ok(());
             }
+        }
+
+        if app.last_update.elapsed() >= app.tick_rate {
+            app.refresh();
         }
     }
 }

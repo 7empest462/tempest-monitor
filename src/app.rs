@@ -1,4 +1,6 @@
-use std::collections::{HashMap, VecDeque};
+#[cfg(target_os = "macos")]
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use sysinfo::{
@@ -239,7 +241,7 @@ impl App {
             signal_menu_open: false,
             selected_signal: 0,
 
-            tick_rate: Duration::from_millis(500),
+            tick_rate: Duration::from_millis(1200),
             last_update: Instant::now() - Duration::from_secs(10), // force immediate first refresh
             last_process_refresh: Instant::now() - Duration::from_secs(10),
             last_disk_refresh: Instant::now() - Duration::from_secs(10),
