@@ -35,7 +35,7 @@ pnet = "0.35"
 
 # ── Phase 12: Persistence ────────────────────────────────────────────────────
 tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros"] }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 
 # ── Phase 13: Alerting ───────────────────────────────────────────────────────
 notify-rust = "4"
