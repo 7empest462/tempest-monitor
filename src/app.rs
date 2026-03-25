@@ -141,7 +141,7 @@ pub struct BatteryInfo {
     pub time_remaining: Option<Duration>,
 }
 
-// ── Service entry (from launchctl) ───────────────────────────────────────────
+// ── Service entry (from launchctl / systemctl) ───────────────────────────────
 
 #[derive(Clone)]
 pub struct ServiceEntry {
@@ -186,6 +186,10 @@ pub struct App {
     pub components: Components,
     pub load_avg: (f64, f64, f64),
     pub gpu_model: String,
+    #[allow(dead_code)]
+    pub gpu_driver: String,
+    #[allow(dead_code)]
+    pub gpu_vendor: String,  // "AMD", "Intel", "NVIDIA", "Apple", "Unknown"
     pub gpu_usage: f64,
     pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics
     pub cpu_power_mw: Option<f64>,
@@ -339,8 +343,43 @@ impl App {
             gpu_model: {
                 #[cfg(target_os = "macos")]
                 { "Apple M4".to_string() }
-                #[cfg(not(target_os = "macos"))]
-                { "Generic / Integrated GPU".to_string() }
+                #[cfg(target_os = "linux")]
+                {
+                    crate::linux_helper::detect_gpu_from_sysfs()
+                        .map(|g| g.model_name)
+                        .unwrap_or_else(|| "Unknown GPU".to_string())
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                { "Unknown GPU".to_string() }
+            },
+            gpu_driver: {
+                #[cfg(target_os = "macos")]
+                { "Apple Metal".to_string() }
+                #[cfg(target_os = "linux")]
+                {
+                    crate::linux_helper::detect_gpu_from_sysfs()
+                        .map(|g| g.driver)
+                        .unwrap_or_else(|| "unknown".to_string())
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                { "unknown".to_string() }
+            },
+            gpu_vendor: {
+                #[cfg(target_os = "macos")]
+                { "Apple".to_string() }
+                #[cfg(target_os = "linux")]
+                {
+                    crate::linux_helper::detect_gpu_from_sysfs()
+                        .map(|g| match g.vendor {
+                            crate::linux_helper::GpuVendor::Amd => "AMD".to_string(),
+                            crate::linux_helper::GpuVendor::Intel => "Intel".to_string(),
+                            crate::linux_helper::GpuVendor::Nvidia => "NVIDIA".to_string(),
+                            crate::linux_helper::GpuVendor::Unknown => "Unknown".to_string(),
+                        })
+                        .unwrap_or_else(|| "Unknown".to_string())
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                { "Unknown".to_string() }
             },
             gpu_usage: -1.0,
             gpu_power_mw: None,
@@ -652,32 +691,80 @@ impl App {
         }
     }
 
-    /// Refresh list of macOS services via `launchctl list`.
+    /// Refresh list of services via `launchctl` (macOS) or `systemctl` (Linux).
     pub fn refresh_services(&mut self) {
-        if let Ok(output) = std::process::Command::new("launchctl").arg("list").output() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let mut entries: Vec<ServiceEntry> = stdout
-                .lines()
-                .skip(1) // skip header line PID Status Label
-                .filter_map(|line| {
-                    let parts: Vec<&str> = line.splitn(3, '\t').collect();
-                    if parts.len() == 3 {
-                        let pid = parts[0].trim().parse::<i32>().ok().filter(|&p| p > 0);
-                        let status = parts[1].trim().parse::<i32>().unwrap_or(0);
-                        let label = parts[2].trim().to_string();
-                        if !label.is_empty() {
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(output) = std::process::Command::new("launchctl").arg("list").output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut entries: Vec<ServiceEntry> = stdout
+                    .lines()
+                    .skip(1)
+                    .filter_map(|line| {
+                        let parts: Vec<&str> = line.splitn(3, '\t').collect();
+                        if parts.len() == 3 {
+                            let pid = parts[0].trim().parse::<i32>().ok().filter(|&p| p > 0);
+                            let status = parts[1].trim().parse::<i32>().unwrap_or(0);
+                            let label = parts[2].trim().to_string();
+                            if !label.is_empty() {
+                                return Some(ServiceEntry { pid, status, label });
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+                entries.sort_by(|a, b| a.label.cmp(&b.label));
+                self.services = entries;
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // systemctl list-units --type=service --no-pager --no-legend --plain
+            // Output: UNIT LOAD ACTIVE SUB DESCRIPTION...
+            if let Ok(output) = std::process::Command::new("systemctl")
+                .args(["list-units", "--type=service", "--no-pager", "--no-legend", "--plain"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut entries: Vec<ServiceEntry> = stdout
+                    .lines()
+                    .filter_map(|line| {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 4 {
+                            let label = parts[0].to_string();
+                            let active = parts[2]; // "active" or "inactive"
+                            let sub = parts[3];    // "running", "exited", "dead", etc.
+                            let pid = if sub == "running" {
+                                // Try to get the MainPID from systemctl show
+                                std::process::Command::new("systemctl")
+                                    .args(["show", "-p", "MainPID", "--value", &label])
+                                    .output()
+                                    .ok()
+                                    .and_then(|o| {
+                                        String::from_utf8_lossy(&o.stdout)
+                                            .trim()
+                                            .parse::<i32>()
+                                            .ok()
+                                            .filter(|&p| p > 0)
+                                    })
+                            } else {
+                                None
+                            };
+                            let status = if active == "active" { 0 } else { -1 };
                             return Some(ServiceEntry { pid, status, label });
                         }
-                    }
-                    None
-                })
-                .collect();
-            entries.sort_by(|a, b| a.label.cmp(&b.label));
-            self.services = entries;
-            // Clamp selection
-            if self.service_selected >= self.services.len() && !self.services.is_empty() {
-                self.service_selected = self.services.len() - 1;
+                        None
+                    })
+                    .collect();
+                entries.sort_by(|a, b| a.label.cmp(&b.label));
+                self.services = entries;
             }
+        }
+
+        // Clamp selection
+        if self.service_selected >= self.services.len() && !self.services.is_empty() {
+            self.service_selected = self.services.len() - 1;
         }
     }
 

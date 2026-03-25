@@ -97,20 +97,35 @@ fn render_action_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(p, area);
 }
 
-/// Called from input.rs to run launchctl actions.
+/// Called from input.rs to run service management actions.
 pub fn run_service_action(app: &mut App, action: &str) {
     if let Some(svc) = app.services.get(app.service_selected) {
         let label = svc.label.clone();
 
-        let result = if action == "restart" {
-            let uid = unsafe { libc::getuid() };
-            std::process::Command::new("launchctl")
-                .args(["kickstart", "-k", &format!("gui/{}/{}", uid, label)])
-                .status()
-        } else {
-            std::process::Command::new("launchctl")
+        #[cfg(target_os = "macos")]
+        let result = {
+            if action == "restart" {
+                let uid = unsafe { libc::getuid() };
+                std::process::Command::new("launchctl")
+                    .args(["kickstart", "-k", &format!("gui/{}/{}", uid, label)])
+                    .status()
+            } else {
+                std::process::Command::new("launchctl")
+                    .args([action, &label])
+                    .status()
+            }
+        };
+
+        #[cfg(target_os = "linux")]
+        let result = {
+            std::process::Command::new("systemctl")
                 .args([action, &label])
                 .status()
+        };
+
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        let result: Result<std::process::ExitStatus, std::io::Error> = {
+            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"))
         };
 
         app.service_action_pending = Some(match result {

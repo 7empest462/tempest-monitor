@@ -213,14 +213,28 @@ fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
     ];
 
     #[cfg(target_os = "linux")]
-    let items: Vec<ListItem> = vec![
-        ListItem::new(format!(" Model:          {}", app.gpu_model)),
-        ListItem::new(" Architecture:   Discrete/Integrated GPU"),
-        ListItem::new(" Driver:         NVIDIA proprietary / Mesa"),
-        ListItem::new(" API Support:    CUDA, Vulkan, OpenGL, OpenCL"),
-        ListItem::new(" Backend:        NVML (NVIDIA) / Sysfs (Other)"),
-        ListItem::new(""),
-    ];
+    let items: Vec<ListItem> = {
+        let api_support = match app.gpu_vendor.as_str() {
+            "AMD" => "Vulkan, OpenGL, OpenCL, VA-API",
+            "Intel" => "Vulkan, OpenGL, OpenCL, VA-API",
+            "NVIDIA" => "CUDA, Vulkan, OpenGL, OpenCL",
+            _ => "Unknown",
+        };
+        let arch = match app.gpu_vendor.as_str() {
+            "AMD" => "RDNA / GCN (Discrete/APU)",
+            "Intel" => "Xe / Gen (Integrated)",
+            "NVIDIA" => "Ada / Ampere (Discrete)",
+            _ => "Unknown Architecture",
+        };
+        vec![
+            ListItem::new(format!(" Model:          {}", app.gpu_model)),
+            ListItem::new(format!(" Architecture:   {}", arch)),
+            ListItem::new(format!(" Driver:         {}", app.gpu_driver)),
+            ListItem::new(format!(" API Support:    {}", api_support)),
+            ListItem::new(format!(" Vendor:         {}", app.gpu_vendor)),
+            ListItem::new(""),
+        ]
+    };
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let items: Vec<ListItem> = vec![

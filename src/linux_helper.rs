@@ -21,40 +21,169 @@ pub struct NvidiaGpuInfo {
     pub power_usage_mw: u32,
 }
 
-pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
-    let rt = tokio::runtime::Runtime::new().ok()?;
-    let iface = iface.to_string();
+/// Detected GPU vendor from sysfs PCI IDs.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GpuVendor {
+    Amd,
+    Intel,
+    Nvidia,
+    Unknown,
+}
 
-    rt.block_on(async move {
-        let (conn, mut handle, _) = new_connection().ok()?;
-        tokio::spawn(conn);
+/// Runtime-detected GPU information from sysfs.
+#[derive(Clone, Debug)]
+pub struct DetectedGpu {
+    pub vendor: GpuVendor,
+    pub model_name: String,
+    pub driver: String,
+    pub sysfs_card: String, // e.g. "card0"
+}
 
-        let mut speed: Option<u32> = None;
-        let mut duplex: Option<String> = None;
+/// Detect GPU(s) by reading `/sys/class/drm/cardN/device/` PCI info.
+pub fn detect_gpu_from_sysfs() -> Option<DetectedGpu> {
+    for n in 0..8u32 {
+        let base = format!("/sys/class/drm/card{}/device", n);
+        let vendor_path = format!("{}/vendor", base);
 
-        // --- Link mode (speed + duplex) ---
-        // .execute().await returns the stream directly in v0.2.9
-        let mut stream = handle.link_mode().get(Some(&iface)).execute().await;
-        while let Ok(Some(msg)) = stream.try_next().await {
-            // In v0.2.9, attributes are in the nlas field of the EthtoolMessage
-            for attr in msg.payload.nlas {
-                if let EthtoolAttr::LinkMode(lm) = attr {
-                    match lm {
-                        EthtoolLinkModeAttr::Speed(s) => speed = Some(s),
-                        EthtoolLinkModeAttr::Duplex(d) => {
-                            duplex = Some(match d {
-                                EthtoolLinkModeDuplex::Half => "Half".into(),
-                                EthtoolLinkModeDuplex::Full => "Full".into(),
-                                _ => "Unknown".into(),
-                            });
+        if let Ok(vendor_str) = std::fs::read_to_string(&vendor_path) {
+            let vendor_hex = vendor_str.trim().to_lowercase();
+            let vendor = match vendor_hex.as_str() {
+                "0x1002" => GpuVendor::Amd,
+                "0x8086" => GpuVendor::Intel,
+                "0x10de" => GpuVendor::Nvidia,
+                _ => GpuVendor::Unknown,
+            };
+
+            // Try to read a human-readable product name (some systems have this)
+            let model_name = std::fs::read_to_string(format!("{}/label", base))
+                .or_else(|_| std::fs::read_to_string(format!("{}/product_name", base)))
+                .map(|s| s.trim().to_string())
+                .unwrap_or_else(|_| {
+                    // Construct a name from PCI device ID
+                    let device_id = std::fs::read_to_string(format!("{}/device", base))
+                        .map(|s| s.trim().to_lowercase())
+                        .unwrap_or_default();
+                    match &vendor {
+                        GpuVendor::Amd => format!("AMD GPU ({})", device_id),
+                        GpuVendor::Intel => format!("Intel GPU ({})", device_id),
+                        GpuVendor::Nvidia => format!("NVIDIA GPU ({})", device_id),
+                        GpuVendor::Unknown => format!("GPU [{}] ({})", vendor_hex, device_id),
+                    }
+                });
+
+            // Read the driver symlink
+            let driver = std::fs::read_link(format!("{}/driver", base))
+                .ok()
+                .and_then(|p| p.file_name().map(|f| f.to_string_lossy().to_string()))
+                .unwrap_or_else(|| "unknown".to_string());
+
+            return Some(DetectedGpu {
+                vendor,
+                model_name,
+                driver,
+                sysfs_card: format!("card{}", n),
+            });
+        }
+    }
+    None
+}
+
+/// Get AMD-specific GPU clock from pp_dpm_sclk (Steam Deck, RDNA, etc.)
+pub fn get_amd_gpu_clock() -> Option<u32> {
+    for n in 0..4u32 {
+        let path = format!("/sys/class/drm/card{}/device/pp_dpm_sclk", n);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            // Find the active clock line (marked with *)
+            for line in content.lines() {
+                if line.contains('*') {
+                    // Format: "N: NNNMhz *"
+                    if let Some(mhz_str) = line.split("Mhz").next() {
+                        let num_str = mhz_str.split_whitespace().last().unwrap_or("0");
+                        if let Ok(mhz) = num_str.parse::<u32>() {
+                            return Some(mhz);
                         }
-                        _ => {}
                     }
                 }
             }
         }
+    }
+    None
+}
 
-        Some(LinuxInterfaceInfo { speed, duplex, driver: None })
+/// Get AMD GPU temperature from hwmon
+pub fn get_amd_gpu_temp() -> Option<u32> {
+    // Look for amdgpu hwmon
+    let hwmon_base = "/sys/class/hwmon";
+    if let Ok(entries) = std::fs::read_dir(hwmon_base) {
+        for entry in entries.flatten() {
+            let name_path = entry.path().join("name");
+            if let Ok(name) = std::fs::read_to_string(&name_path) {
+                if name.trim() == "amdgpu" {
+                    let temp_path = entry.path().join("temp1_input");
+                    if let Ok(temp_str) = std::fs::read_to_string(&temp_path) {
+                        if let Ok(millideg) = temp_str.trim().parse::<u32>() {
+                            return Some(millideg / 1000); // Convert millidegrees to degrees
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Get AMD GPU VRAM usage from sysfs
+pub fn get_amd_vram_usage() -> Option<(u64, u64)> {
+    for n in 0..4u32 {
+        let used_path = format!("/sys/class/drm/card{}/device/mem_info_vram_used", n);
+        let total_path = format!("/sys/class/drm/card{}/device/mem_info_vram_total", n);
+        if let (Ok(used_str), Ok(total_str)) = (
+            std::fs::read_to_string(&used_path),
+            std::fs::read_to_string(&total_path),
+        ) {
+            if let (Ok(used), Ok(total)) = (
+                used_str.trim().parse::<u64>(),
+                total_str.trim().parse::<u64>(),
+            ) {
+                return Some((used, total));
+            }
+        }
+    }
+    None
+}
+
+pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
+    let iface = iface.to_string();
+
+    tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async move {
+            let (conn, mut handle, _) = new_connection().ok()?;
+            tokio::spawn(conn);
+
+            let mut speed: Option<u32> = None;
+            let mut duplex: Option<String> = None;
+
+            let mut stream = handle.link_mode().get(Some(&iface)).execute().await;
+            while let Ok(Some(msg)) = stream.try_next().await {
+                for attr in msg.payload.nlas {
+                    if let EthtoolAttr::LinkMode(lm) = attr {
+                        match lm {
+                            EthtoolLinkModeAttr::Speed(s) => speed = Some(s),
+                            EthtoolLinkModeAttr::Duplex(d) => {
+                                duplex = Some(match d {
+                                    EthtoolLinkModeDuplex::Half => "Half".into(),
+                                    EthtoolLinkModeDuplex::Full => "Full".into(),
+                                    _ => "Unknown".into(),
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            Some(LinuxInterfaceInfo { speed, duplex, driver: None })
+        })
     })
 }
 
