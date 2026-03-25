@@ -28,17 +28,44 @@ use crate::app::App;
 use crate::cli::CliArgs;
 use crate::config::TempestConfig;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Parse CLI args first (before entering raw mode, so --help works)
-    let cli = CliArgs::parse_args();
-
-    // Write PID file if requested (v0.3.2)
-    if let Some(ref pid_path) = cli.pid_file {
-        std::fs::write(pid_path, std::process::id().to_string())?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Manual early-parse for --headless and --pid-file to ensure silence ASAP
+    let args: Vec<String> = std::env::args().collect();
+    let is_headless = args.iter().any(|a| a == "--headless");
+    
+    // Write PID file as early as possible (before any TTY-sensitive crates init)
+    if let Some(pos) = args.iter().position(|a| a == "--pid-file") {
+        if let Some(pid_path) = args.get(pos + 1) {
+            let _ = std::fs::write(pid_path, std::process::id().to_string());
+        }
     }
 
-    // Initialize logging (Phase 13 cleanup + v0.3.1 log-file support)
+    // 2. If headless, redirect stdout/stderr to /dev/null to prevent SIGTTOU on macOS
+    if is_headless {
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::unix::io::AsRawFd;
+            let dev_null = std::fs::File::open("/dev/null")?;
+            let null_fd = dev_null.as_raw_fd();
+            unsafe {
+                libc::dup2(null_fd, libc::STDOUT_FILENO);
+                libc::dup2(null_fd, libc::STDERR_FILENO);
+            }
+        }
+    }
+
+    // 3. Initialize the real async runtime manually
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+
+    rt.block_on(async_main())
+}
+
+async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = CliArgs::parse_args();
+
+    // Initialize logging (v0.3.3 log-file support)
     let log_level = match cli.verbose {
         0 => "warn",
         1 => "info",
@@ -52,27 +79,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     builder.format_timestamp_millis();
 
     if let Some(ref log_path) = cli.log_file {
-        let file = std::fs::File::create(log_path)?;
+        // Support ~ expansion for log file (Phase 16)
+        let expanded_path = if log_path.starts_with("~/") {
+            dirs::home_dir()
+                .map(|p| p.join(&log_path[2..]))
+                .unwrap_or_else(|| std::path::PathBuf::from(log_path))
+        } else {
+            std::path::PathBuf::from(log_path)
+        };
+        let file = std::fs::File::create(expanded_path)?;
         builder.target(env_logger::Target::Pipe(Box::new(file)));
     }
     builder.init();
 
     log::info!("Starting Tempest Monitor v{}", env!("CARGO_PKG_VERSION"));
-    if let Some(ref pid_path) = cli.pid_file {
-        log::info!("Headless mode: PID {} written to {}", std::process::id(), pid_path);
-    }
-
-    // Load config (file + CLI overrides)
+    
+    // Load config
     let mut cfg = TempestConfig::load(cli.config.as_deref());
     cfg.apply_cli(&cli);
-
-    log::debug!("Config: {:?}", cfg);
 
     // Initialize Database
     let db = db::Database::new().await?;
     let db = std::sync::Arc::new(db);
-
-    // Startup pruning (7 days)
     let _ = db.prune_old_data(7).await;
 
     // Initialize Metrics Export
@@ -87,14 +115,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.refresh();
         let data = export::export_json(&app);
         std::fs::write(path, data)?;
-        println!("JSON snapshot exported to {}", path);
         return Ok(());
     }
 
     if let Some(ref path) = cli.export_chart {
         app.refresh();
         export::export_chart_png(&app, path)?;
-        println!("Performance chart exported to {}", path);
         return Ok(());
     }
 
@@ -103,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::info!("Running in HEADLESS mode (Daemon). Alerts and metrics export are active.");
         run_headless(app, db).await?;
     } else {
-        // Terminal setup (Only if NOT headless)
+        // Terminal setup
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
