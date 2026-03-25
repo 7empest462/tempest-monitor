@@ -6,39 +6,10 @@ use nvml_wrapper::Nvml;
 use nvml_wrapper::enum_wrappers::device::{TemperatureSensor, Clock};
 use futures::stream::TryStreamExt;
 
-pub struct LinuxProcessInfo {
-    pub fd_count: usize,
-    pub thread_count: i64,
-    pub cgroup: String,
-}
-
 pub struct LinuxInterfaceInfo {
     pub speed: Option<u32>,
     pub duplex: Option<String>,
     pub driver: Option<String>,
-}
-
-pub struct NvidiaGpuInfo {
-    pub name: String,
-    pub temperature: u32,
-    pub memory_used_pct: f64,
-    pub fan_speed_pct: u32,
-    pub graphics_clock_mhz: u32,
-    pub memory_clock_mhz: u32,
-    pub power_usage_mw: u32,
-}
-
-pub fn get_process_extra_info(pid: i32) -> Option<LinuxProcessInfo> {
-    let proc = Process::new(pid).ok()?;
-    let fd_count = proc.fd_count().unwrap_or(0);
-    let stat = proc.stat().ok()?;
-    let cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", pid)).unwrap_or_default();
-
-    Some(LinuxProcessInfo {
-        fd_count,
-        thread_count: stat.num_threads,
-        cgroup,
-    })
 }
 
 pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
