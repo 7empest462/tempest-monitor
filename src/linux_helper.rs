@@ -1,27 +1,22 @@
-#[cfg(target_os = "linux")]
+#![cfg(target_os = "linux")]
+
 use procfs::process::Process;
-#[cfg(target_os = "linux")]
 use ethtool::Ethtool;
-#[cfg(target_os = "linux")]
 use nvml_wrapper::Nvml;
-#[cfg(target_os = "linux")]
 use nvml_wrapper::enum_wrappers::device::{TemperatureSensor, Clock};
 
-#[cfg(target_os = "linux")]
 pub struct LinuxProcessInfo {
     pub fd_count: usize,
     pub thread_count: i64,
     pub cgroup: String,
 }
 
-#[cfg(target_os = "linux")]
 pub struct LinuxInterfaceInfo {
     pub speed: Option<u32>,
     pub duplex: Option<String>,
     pub driver: Option<String>,
 }
 
-#[cfg(target_os = "linux")]
 pub struct NvidiaGpuInfo {
     pub name: String,
     pub temperature: u32,
@@ -32,7 +27,6 @@ pub struct NvidiaGpuInfo {
     pub power_usage_mw: u32,
 }
 
-#[cfg(target_os = "linux")]
 pub fn get_process_extra_info(pid: i32) -> Option<LinuxProcessInfo> {
     let proc = Process::new(pid).ok()?;
     let fd_count = proc.fd_count().unwrap_or(0);
@@ -46,7 +40,6 @@ pub fn get_process_extra_info(pid: i32) -> Option<LinuxProcessInfo> {
     })
 }
 
-#[cfg(target_os = "linux")]
 pub fn get_interface_extra_info(name: &str) -> Option<LinuxInterfaceInfo> {
     let mut ethtool = Ethtool::new().ok()?;
     
@@ -61,7 +54,6 @@ pub fn get_interface_extra_info(name: &str) -> Option<LinuxInterfaceInfo> {
     })
 }
 
-#[cfg(target_os = "linux")]
 pub fn get_nvidia_gpu_info() -> Vec<NvidiaGpuInfo> {
     let mut results = Vec::new();
     let nvml = match Nvml::init() {

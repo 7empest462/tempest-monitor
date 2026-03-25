@@ -55,3 +55,4 @@ plotters = "0.3"
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = "0.17"
 nvml-wrapper = "0.10"
+ethtool = "0.2"
