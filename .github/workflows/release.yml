@@ -11,20 +11,24 @@ env:
 
 jobs:
   build-linux:
-    name: Build for Linux (musl)
+    name: Build for Linux (Ubuntu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config libssl-dev
+
       - name: Build
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          target: x86_64-unknown-linux-musl
-          args: --release
+        run: cargo build --release
+        
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tempest-monitor-linux-musl
-          path: target/x86_64-unknown-linux-musl/release/tempest-monitor
+          name: tempest-monitor-linux
+          path: target/release/tempest-monitor
 
   build-macos:
     name: Build for macOS (Silicon)
