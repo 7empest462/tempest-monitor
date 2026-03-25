@@ -33,6 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse CLI args first (before entering raw mode, so --help works)
     let cli = CliArgs::parse_args();
 
+    // Write PID file if requested (v0.3.2)
+    if let Some(ref pid_path) = cli.pid_file {
+        std::fs::write(pid_path, std::process::id().to_string())?;
+    }
+
     // Initialize logging (Phase 13 cleanup + v0.3.1 log-file support)
     let log_level = match cli.verbose {
         0 => "warn",
@@ -53,11 +58,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     builder.init();
 
     log::info!("Starting Tempest Monitor v{}", env!("CARGO_PKG_VERSION"));
-
-    // Write PID file if requested (v0.3.2)
     if let Some(ref pid_path) = cli.pid_file {
-        std::fs::write(pid_path, std::process::id().to_string())?;
-        log::debug!("PID {} written to {}", std::process::id(), pid_path);
+        log::info!("Headless mode: PID {} written to {}", std::process::id(), pid_path);
     }
 
     // Load config (file + CLI overrides)
@@ -98,11 +100,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Branch: Headless Mode vs TUI Mode
     if cli.headless {
-        println!("Running in HEADLESS mode (Daemon). Press Ctrl+C to stop.");
-        println!("Alerts and metrics export are active in the background.");
+        log::info!("Running in HEADLESS mode (Daemon). Alerts and metrics export are active.");
         run_headless(app, db).await?;
     } else {
-        // Terminal setup
+        // Terminal setup (Only if NOT headless)
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
