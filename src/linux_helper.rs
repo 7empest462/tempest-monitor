@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 
 use procfs::process::Process;
-use ethtool::{new_connection, EthtoolAttr, EthtoolLinkModeAttr, EthtoolDriverAttr};
+use ethtool::{new_connection, EthtoolAttr, EthtoolLinkModeAttr};
 use nvml_wrapper::Nvml;
 use nvml_wrapper::enum_wrappers::device::{TemperatureSensor, Clock};
 use futures::StreamExt;
@@ -51,20 +51,19 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
 
         let mut speed: Option<u32> = None;
         let mut duplex: Option<String> = None;
-        let mut driver: Option<String> = None;
 
         // --- Link mode (speed + duplex) ---
-        let mut stream = handle.link_mode().get(Some(&iface)).execute();
-        while let Some(Ok(msg)) = stream.next().await {
-            for attr in msg.payload.attributes {
-                if let EthtoolAttr::LinkMode(lm_attrs) = attr {
-                    for lm in lm_attrs {
+        // .execute() in v0.2.9 returns a Future that resolves to a Stream
+        if let Ok(mut stream) = handle.link_mode().get(Some(&iface)).execute().await {
+            while let Some(Ok(msg)) = stream.next().await {
+                for attr in msg.payload.attributes {
+                    if let EthtoolAttr::LinkMode(lm) = attr {
                         match lm {
                             EthtoolLinkModeAttr::Speed(s) => speed = Some(s),
                             EthtoolLinkModeAttr::Duplex(d) => {
                                 duplex = Some(match d {
-                                    0 => "Half".into(),
-                                    1 => "Full".into(),
+                                    ethtool::EthtoolLinkModeDuplex::Half => "Half".into(),
+                                    ethtool::EthtoolLinkModeDuplex::Full => "Full".into(),
                                     _ => "Unknown".into(),
                                 });
                             }
@@ -75,21 +74,7 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
             }
         }
 
-        // --- Driver info ---
-        let mut stream = handle.driver_info().get(Some(&iface)).execute();
-        while let Some(Ok(msg)) = stream.next().await {
-            for attr in msg.payload.attributes {
-                if let EthtoolAttr::Driver(drv_attrs) = attr {
-                    for drv in drv_attrs {
-                        if let EthtoolDriverAttr::Driver(name) = drv {
-                            driver = Some(name);
-                        }
-                    }
-                }
-            }
-        }
-
-        Some(LinuxInterfaceInfo { speed, duplex, driver })
+        Some(LinuxInterfaceInfo { speed, duplex, driver: None })
     })
 }
 
