@@ -70,7 +70,6 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
                             }
                             _ => {}
                         }
-                    }
                 }
             }
         }
