@@ -29,28 +29,29 @@ use crate::cli::CliArgs;
 use crate::config::TempestConfig;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Manual early-parse for --headless and --pid-file to ensure silence ASAP
+    // 1. Triple-Silence (stdin, stdout, stderr) for headless mode ASAP
     let args: Vec<String> = std::env::args().collect();
     let is_headless = args.iter().any(|a| a == "--headless");
     
-    // Write PID file as early as possible (before any TTY-sensitive crates init)
-    if let Some(pos) = args.iter().position(|a| a == "--pid-file") {
-        if let Some(pid_path) = args.get(pos + 1) {
-            let _ = std::fs::write(pid_path, std::process::id().to_string());
+    if is_headless {
+        #[cfg(unix)] // macOS and Linux
+        {
+            use std::os::unix::io::AsRawFd;
+            if let Ok(dev_null) = std::fs::File::open("/dev/null") {
+                let null_fd = dev_null.as_raw_fd();
+                unsafe {
+                    libc::dup2(null_fd, libc::STDIN_FILENO);
+                    libc::dup2(null_fd, libc::STDOUT_FILENO);
+                    libc::dup2(null_fd, libc::STDERR_FILENO);
+                }
+            }
         }
     }
 
-    // 2. If headless, redirect stdout/stderr to /dev/null to prevent SIGTTOU on macOS
-    if is_headless {
-        #[cfg(target_os = "macos")]
-        {
-            use std::os::unix::io::AsRawFd;
-            let dev_null = std::fs::File::open("/dev/null")?;
-            let null_fd = dev_null.as_raw_fd();
-            unsafe {
-                libc::dup2(null_fd, libc::STDOUT_FILENO);
-                libc::dup2(null_fd, libc::STDERR_FILENO);
-            }
+    // 2. Early PID file creation (v0.3.4)
+    if let Some(pos) = args.iter().position(|a| a == "--pid-file") {
+        if let Some(pid_path) = args.get(pos + 1) {
+            let _ = std::fs::write(pid_path, std::process::id().to_string());
         }
     }
 
