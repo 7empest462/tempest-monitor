@@ -1,10 +1,10 @@
 #![cfg(target_os = "linux")]
 
 use procfs::process::Process;
-use ethtool::{new_connection, EthtoolAttr, EthtoolLinkModeAttr};
+use ethtool::{new_connection, EthtoolAttr, EthtoolLinkModeAttr, EthtoolLinkModeDuplex};
 use nvml_wrapper::Nvml;
 use nvml_wrapper::enum_wrappers::device::{TemperatureSensor, Clock};
-use futures::StreamExt;
+use futures::stream::TryStreamExt;
 
 pub struct LinuxProcessInfo {
     pub fd_count: usize,
@@ -53,17 +53,18 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
         let mut duplex: Option<String> = None;
 
         // --- Link mode (speed + duplex) ---
-        // .execute() in v0.2.9 returns a Future that resolves to a Stream
+        // .execute().await returns the stream in v0.2.9
         if let Ok(mut stream) = handle.link_mode().get(Some(&iface)).execute().await {
-            while let Some(Ok(msg)) = stream.next().await {
-                for attr in msg.payload.attributes {
+            while let Ok(Some(msg)) = stream.try_next().await {
+                // In v0.2.9, attributes are nested in payload.payload
+                for attr in msg.payload.payload.attributes {
                     if let EthtoolAttr::LinkMode(lm) = attr {
                         match lm {
                             EthtoolLinkModeAttr::Speed(s) => speed = Some(s),
                             EthtoolLinkModeAttr::Duplex(d) => {
                                 duplex = Some(match d {
-                                    ethtool::EthtoolLinkModeDuplex::Half => "Half".into(),
-                                    ethtool::EthtoolLinkModeDuplex::Full => "Full".into(),
+                                    EthtoolLinkModeDuplex::Half => "Half".into(),
+                                    EthtoolLinkModeDuplex::Full => "Full".into(),
                                     _ => "Unknown".into(),
                                 });
                             }
