@@ -36,6 +36,7 @@ pub struct DetectedGpu {
     pub vendor: GpuVendor,
     pub model_name: String,
     pub driver: String,
+    #[allow(dead_code)]
     pub sysfs_card: String, // e.g. "card0"
 }
 
@@ -89,6 +90,7 @@ pub fn detect_gpu_from_sysfs() -> Option<DetectedGpu> {
 }
 
 /// Get AMD-specific GPU clock from pp_dpm_sclk (Steam Deck, RDNA, etc.)
+#[allow(dead_code)]
 pub fn get_amd_gpu_clock() -> Option<u32> {
     for n in 0..4u32 {
         let path = format!("/sys/class/drm/card{}/device/pp_dpm_sclk", n);
@@ -111,6 +113,7 @@ pub fn get_amd_gpu_clock() -> Option<u32> {
 }
 
 /// Get AMD GPU temperature from hwmon
+#[allow(dead_code)]
 pub fn get_amd_gpu_temp() -> Option<u32> {
     // Look for amdgpu hwmon
     let hwmon_base = "/sys/class/hwmon";
@@ -133,6 +136,7 @@ pub fn get_amd_gpu_temp() -> Option<u32> {
 }
 
 /// Get AMD GPU VRAM usage from sysfs
+#[allow(dead_code)]
 pub fn get_amd_vram_usage() -> Option<(u64, u64)> {
     for n in 0..4u32 {
         let used_path = format!("/sys/class/drm/card{}/device/mem_info_vram_used", n);
