@@ -53,11 +53,11 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
         let mut duplex: Option<String> = None;
 
         // --- Link mode (speed + duplex) ---
-        // .execute().await returns the stream in v0.2.9
-        if let Ok(mut stream) = handle.link_mode().get(Some(&iface)).execute().await {
-            while let Ok(Some(msg)) = stream.try_next().await {
-                // In v0.2.9, attributes are nested in payload.payload
-                for attr in msg.payload.payload.attributes {
+        // .execute().await returns the stream directly in v0.2.9
+        let mut stream = handle.link_mode().get(Some(&iface)).execute().await;
+        while let Ok(Some(msg)) = stream.try_next().await {
+            // In v0.2.9, attributes are nested in payload.payload
+            for attr in msg.payload.payload.attributes {
                     if let EthtoolAttr::LinkMode(lm) = attr {
                         match lm {
                             EthtoolLinkModeAttr::Speed(s) => speed = Some(s),
