@@ -36,7 +36,7 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         KeyCode::Char('7') => app.active_tab = ActiveTab::Gpu,
         KeyCode::Char('8') => {
             app.active_tab = ActiveTab::Services;
-            if app.services.is_empty() { app.refresh_services(); }
+            app.refresh_services();
         }
         KeyCode::Char('9') => {
             app.active_tab = ActiveTab::Sockets;

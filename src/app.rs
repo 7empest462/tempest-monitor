@@ -258,6 +258,7 @@ pub struct App {
     pub last_process_refresh: Instant,
     pub last_disk_refresh: Instant,
     pub last_gpu_refresh: Instant,
+    pub last_service_refresh: Instant,
 }
 
 impl App {
@@ -339,6 +340,7 @@ impl App {
             last_process_refresh: Instant::now() - Duration::from_secs(10),
             last_disk_refresh: Instant::now() - Duration::from_secs(10),
             last_gpu_refresh: Instant::now() - Duration::from_secs(10),
+            last_service_refresh: Instant::now() - Duration::from_secs(30),
             load_avg: (0.0, 0.0, 0.0),
             gpu_model: {
                 #[cfg(target_os = "macos")]
@@ -470,6 +472,14 @@ impl App {
         if now.duration_since(self.last_gpu_refresh) >= Duration::from_secs(2) {
             self.refresh_gpu();
             self.last_gpu_refresh = now;
+        }
+
+        // 5. THROTTLED REFRESH: Services (every 10 seconds, only when on Services tab)
+        if self.active_tab == ActiveTab::Services
+            && now.duration_since(self.last_service_refresh) >= Duration::from_secs(10)
+        {
+            self.refresh_services();
+            self.last_service_refresh = now;
         }
 
         // 5. ALWAYS REFRESH: Networks and Components (sensors)
@@ -720,46 +730,49 @@ impl App {
 
         #[cfg(target_os = "linux")]
         {
-            // systemctl list-units --type=service --no-pager --no-legend --plain
-            // Output: UNIT LOAD ACTIVE SUB DESCRIPTION...
-            if let Ok(output) = std::process::Command::new("systemctl")
-                .args(["list-units", "--type=service", "--no-pager", "--no-legend", "--plain"])
-                .output()
-            {
+            // Try system-level first, then user-level as fallback (Steam Deck)
+            let try_systemctl = |extra_args: &[&str]| -> Vec<ServiceEntry> {
+                let mut args = vec!["list-units", "--type=service", "--all", "--no-pager", "--no-legend", "--plain"];
+                args.extend_from_slice(extra_args);
+                
+                let output = match std::process::Command::new("systemctl")
+                    .args(&args)
+                    .output()
+                {
+                    Ok(o) => o,
+                    Err(_) => return Vec::new(),
+                };
+
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                let mut entries: Vec<ServiceEntry> = stdout
+                stdout
                     .lines()
                     .filter_map(|line| {
                         let parts: Vec<&str> = line.split_whitespace().collect();
                         if parts.len() >= 4 {
                             let label = parts[0].to_string();
-                            let active = parts[2]; // "active" or "inactive"
-                            let sub = parts[3];    // "running", "exited", "dead", etc.
-                            let pid = if sub == "running" {
-                                // Try to get the MainPID from systemctl show
-                                std::process::Command::new("systemctl")
-                                    .args(["show", "-p", "MainPID", "--value", &label])
-                                    .output()
-                                    .ok()
-                                    .and_then(|o| {
-                                        String::from_utf8_lossy(&o.stdout)
-                                            .trim()
-                                            .parse::<i32>()
-                                            .ok()
-                                            .filter(|&p| p > 0)
-                                    })
-                            } else {
-                                None
-                            };
+                            let active = parts[2];
+                            let sub = parts[3];
+                            // Mark running services with a synthetic PID indicator
+                            let pid = if sub == "running" { Some(1) } else { None };
                             let status = if active == "active" { 0 } else { -1 };
-                            return Some(ServiceEntry { pid, status, label });
+                            Some(ServiceEntry { pid, status, label })
+                        } else {
+                            None
                         }
-                        None
                     })
-                    .collect();
-                entries.sort_by(|a, b| a.label.cmp(&b.label));
-                self.services = entries;
+                    .collect()
+            };
+
+            // Try system services first  
+            let mut entries = try_systemctl(&[]);
+            
+            // If empty, try user services (Steam Deck often runs as user 'deck')
+            if entries.is_empty() {
+                entries = try_systemctl(&["--user"]);
             }
+
+            entries.sort_by(|a, b| a.label.cmp(&b.label));
+            self.services = entries;
         }
 
         // Clamp selection
