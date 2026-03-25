@@ -1,6 +1,6 @@
 [package]
 name = "tempest-monitor"
-version = "0.3.4"
+version = "0.3.0"
 license = "MIT"
 edition = "2024"
 default-run = "tempest-monitor"

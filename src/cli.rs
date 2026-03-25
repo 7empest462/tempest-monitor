@@ -43,18 +43,6 @@ pub struct CliArgs {
     /// Increase log verbosity (-v, -vv, -vvv)
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
-    
-    /// Run in headless (daemon) mode without TUI
-    #[arg(long)]
-    pub headless: bool,
-
-    /// Write logs to a specific file
-    #[arg(long)]
-    pub log_file: Option<String>,
-
-    /// Write process ID to a specific file
-    #[arg(long)]
-    pub pid_file: Option<String>,
 }
 
 impl CliArgs {
