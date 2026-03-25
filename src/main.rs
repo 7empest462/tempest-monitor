@@ -54,6 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Starting Tempest Monitor v{}", env!("CARGO_PKG_VERSION"));
 
+    // Write PID file if requested (v0.3.2)
+    if let Some(ref pid_path) = cli.pid_file {
+        std::fs::write(pid_path, std::process::id().to_string())?;
+        log::debug!("PID {} written to {}", std::process::id(), pid_path);
+    }
+
     // Load config (file + CLI overrides)
     let mut cfg = TempestConfig::load(cli.config.as_deref());
     cfg.apply_cli(&cli);
