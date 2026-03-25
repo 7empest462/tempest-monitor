@@ -262,7 +262,7 @@ fn render_sensors_battery(f: &mut Frame, app: &App, area: Rect) {
     let bat_text = if let Some(ref bat) = app.battery_info {
         let time_str = bat
             .time_remaining
-            .map(|d| {
+            .map(|d: std::time::Duration| {
                 let h = d.as_secs() / 3600;
                 let m = (d.as_secs() % 3600) / 60;
                 format!("{h}h {m:02}m remaining")

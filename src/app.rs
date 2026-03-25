@@ -1,6 +1,4 @@
-#[cfg(target_os = "macos")]
-use std::collections::HashMap;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 use sysinfo::{
@@ -8,8 +6,17 @@ use sysinfo::{
     RefreshKind, System,
 };
 
+use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
+// use pnet::datalink;
+use tui_textarea::TextArea;
+
+use crate::cli::CliArgs;
+use crate::config::TempestConfig;
+
 // ── History buffer size (number of sparkline data points) ────────────────────
 pub const HISTORY_LEN: usize = 120;
+
+
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -22,10 +29,12 @@ pub enum ActiveTab {
     Network,
     Processes,
     Gpu,
+    Services,
+    Sockets,
 }
 
 impl ActiveTab {
-    pub const ALL: [ActiveTab; 7] = [
+    pub const ALL: [ActiveTab; 9] = [
         ActiveTab::Overview,
         ActiveTab::Cpu,
         ActiveTab::Memory,
@@ -33,29 +42,35 @@ impl ActiveTab {
         ActiveTab::Network,
         ActiveTab::Processes,
         ActiveTab::Gpu,
+        ActiveTab::Services,
+        ActiveTab::Sockets,
     ];
 
     pub fn index(self) -> usize {
         match self {
-            ActiveTab::Overview => 0,
-            ActiveTab::Cpu => 1,
-            ActiveTab::Memory => 2,
-            ActiveTab::Disks => 3,
-            ActiveTab::Network => 4,
+            ActiveTab::Overview  => 0,
+            ActiveTab::Cpu      => 1,
+            ActiveTab::Memory   => 2,
+            ActiveTab::Disks    => 3,
+            ActiveTab::Network  => 4,
             ActiveTab::Processes => 5,
-            ActiveTab::Gpu => 6,
+            ActiveTab::Gpu      => 6,
+            ActiveTab::Services => 7,
+            ActiveTab::Sockets  => 8,
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            ActiveTab::Overview => "Overvw",
-            ActiveTab::Cpu => "CPU",
-            ActiveTab::Memory => "Mem",
-            ActiveTab::Disks => "Disk",
-            ActiveTab::Network => "Net",
+            ActiveTab::Overview  => "Overvw",
+            ActiveTab::Cpu      => "CPU",
+            ActiveTab::Memory   => "Mem",
+            ActiveTab::Disks    => "Disk",
+            ActiveTab::Network  => "Net",
             ActiveTab::Processes => "Proc",
-            ActiveTab::Gpu => "GPU",
+            ActiveTab::Gpu      => "GPU",
+            ActiveTab::Services => "Svc",
+            ActiveTab::Sockets  => "Socks",
         }
     }
 }
@@ -126,9 +141,44 @@ pub struct BatteryInfo {
     pub time_remaining: Option<Duration>,
 }
 
+// ── Service entry (from launchctl) ───────────────────────────────────────────
+
+#[derive(Clone)]
+pub struct ServiceEntry {
+    pub pid: Option<i32>,
+    pub status: i32,
+    pub label: String,
+}
+
+// ── Socket entry (active TCP/UDP connections) ────────────────────────────────
+
+#[derive(Clone)]
+pub struct SocketEntry {
+    pub proto: String,
+    pub local_addr: String,
+    pub foreign_addr: String,
+    pub state: String,
+    pub pid: Option<i32>,
+    pub process_name: String,
+}
+
+#[derive(Clone)]
+pub struct NetworkInterfaceInfo {
+    pub mac: String,
+    pub mtu: u32,
+    pub speed: Option<u32>,   // Mbps
+    pub duplex: Option<String>,
+    pub driver: Option<String>,
+}
+
+#[cfg(target_os = "linux")]
+pub use crate::linux_helper::NvidiaGpuInfo;
+
 // ── Main App state ───────────────────────────────────────────────────────────
 
 pub struct App {
+    pub config: TempestConfig,
+
     // sysinfo collectors
     pub sys: System,
     pub networks: Networks,
@@ -137,6 +187,15 @@ pub struct App {
     pub load_avg: (f64, f64, f64),
     pub gpu_model: String,
     pub gpu_usage: f64,
+    pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics
+    pub cpu_power_mw: Option<f64>,
+    pub pkg_power_mw: Option<f64>,
+
+    #[cfg(target_os = "linux")]
+    pub nvidia_gpus: Vec<NvidiaGpuInfo>,
+
+    // Network Enrichment
+    pub network_info: HashMap<String, NetworkInterfaceInfo>,
 
     // Battery
     pub battery_manager: Option<battery::Manager>,
@@ -160,7 +219,8 @@ pub struct App {
     pub sort_mode: SortMode,
     pub sort_direction: SortDirection,
     pub process_view: ProcessViewMode,
-    pub filter: String,
+    pub filter_text_area: TextArea<'static>,
+    pub filter_active: bool,
     pub filter_regex: bool,
     pub selected: usize,
     pub show_detail_panel: bool,
@@ -168,6 +228,20 @@ pub struct App {
     // Signal menu
     pub signal_menu_open: bool,
     pub selected_signal: usize,
+
+    // Services (Tab 8)
+    pub services: Vec<ServiceEntry>,
+    pub service_selected: usize,
+    pub service_action_pending: Option<String>, // feedback message
+
+    // Network sockets (Tab 9)
+    pub sockets: Vec<SocketEntry>,
+    pub socket_selected: usize,
+
+    // Process Focus mode (Enter on a process)
+    pub focus_pid: Option<sysinfo::Pid>,
+    pub focus_cpu_history: VecDeque<u64>,
+    pub focus_mem_history: VecDeque<u64>,
 
     #[cfg(target_os = "macos")]
     pub compressed_mem_cache: HashMap<sysinfo::Pid, u64>,
@@ -183,7 +257,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new_with_config(_cli: &CliArgs, config: &TempestConfig) -> Self {
         let refresh_kind = RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::everything())
@@ -207,7 +281,21 @@ impl App {
             })
         });
 
+        let active_tab = match config.default_tab {
+            1 => ActiveTab::Overview,
+            2 => ActiveTab::Cpu,
+            3 => ActiveTab::Memory,
+            4 => ActiveTab::Disks,
+            5 => ActiveTab::Network,
+            6 => ActiveTab::Processes,
+            7 => ActiveTab::Gpu,
+            8 => ActiveTab::Services,
+            9 => ActiveTab::Sockets,
+            _ => ActiveTab::Overview,
+        };
+
         App {
+            config: config.clone(),
             sys,
             networks: Networks::new(),
             disks: Disks::new(),
@@ -216,7 +304,7 @@ impl App {
             battery_manager,
             battery_info,
 
-            active_tab: ActiveTab::Overview,
+            active_tab,
             show_help: false,
             paused: false,
 
@@ -233,7 +321,8 @@ impl App {
             sort_mode: SortMode::Cpu,
             sort_direction: SortDirection::Desc,
             process_view: ProcessViewMode::List,
-            filter: String::new(),
+            filter_text_area: TextArea::default(),
+            filter_active: false,
             filter_regex: false,
             selected: 0,
             show_detail_panel: false,
@@ -241,7 +330,7 @@ impl App {
             signal_menu_open: false,
             selected_signal: 0,
 
-            tick_rate: Duration::from_millis(1200),
+            tick_rate: Duration::from_millis(config.refresh_rate_ms),
             last_update: Instant::now() - Duration::from_secs(10), // force immediate first refresh
             last_process_refresh: Instant::now() - Duration::from_secs(10),
             last_disk_refresh: Instant::now() - Duration::from_secs(10),
@@ -254,6 +343,25 @@ impl App {
                 { "Generic / Integrated GPU".to_string() }
             },
             gpu_usage: -1.0,
+            gpu_power_mw: None,
+            cpu_power_mw: None,
+            pkg_power_mw: None,
+
+            #[cfg(target_os = "linux")]
+            nvidia_gpus: Vec::new(),
+
+            network_info: HashMap::new(),
+
+            services: Vec::new(),
+            service_selected: 0,
+            service_action_pending: None,
+
+            sockets: Vec::new(),
+            socket_selected: 0,
+
+            focus_pid: None,
+            focus_cpu_history: VecDeque::with_capacity(HISTORY_LEN),
+            focus_mem_history: VecDeque::with_capacity(HISTORY_LEN),
 
             #[cfg(target_os = "macos")]
             compressed_mem_cache: HashMap::new(),
@@ -328,6 +436,39 @@ impl App {
         // 5. ALWAYS REFRESH: Networks and Components (sensors)
         self.networks.refresh(true);
         self.components.refresh(true);
+
+        // Network enrichment (pnet)
+        #[cfg(target_os = "linux")]
+        {
+            for interface in pnet::datalink::interfaces() {
+                let linux_info = crate::linux_helper::get_interface_extra_info(&interface.name);
+                let (speed, duplex, driver) = (
+                    linux_info.as_ref().and_then(|e| e.speed),
+                    linux_info.as_ref().and_then(|e| e.duplex.clone()),
+                    linux_info.as_ref().and_then(|e| e.driver.clone())
+                );
+
+                self.network_info.insert(interface.name.clone(), NetworkInterfaceInfo {
+                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
+                    mtu: 0,
+                    speed,
+                    duplex,
+                    driver,
+                });
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            for interface in pnet::datalink::interfaces() {
+                self.network_info.insert(interface.name.clone(), NetworkInterfaceInfo {
+                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
+                    mtu: 0,
+                    speed: None,
+                    duplex: None,
+                    driver: None,
+                });
+            }
+        }
 
         // CPU history
         let global_cpu: f64 = if !self.sys.cpus().is_empty() {
@@ -422,11 +563,15 @@ impl App {
         }
     }
 
-    /// Refresh GPU usage data.
+    /// Refresh GPU usage and power data.
     fn refresh_gpu(&mut self) {
+        if !self.config.gpu_enabled {
+            self.gpu_usage = -1.0;
+            return;
+        }
+
         #[cfg(target_os = "macos")]
         {
-            // Detection: powermetrics requires root. If we aren't root, we must use sudo.
             let is_root = unsafe { libc::getuid() } == 0;
             let mut cmd = if is_root {
                 std::process::Command::new("powermetrics")
@@ -437,41 +582,172 @@ impl App {
             };
 
             if let Ok(output) = cmd
-                .args(["--samplers", "gpu_power", "-n", "1", "-i", "1"])
+                .args(["--samplers", "gpu_power,cpu_power", "-n", "1", "-i", "100"])
                 .output()
             {
                 let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut found_usage = -1.0;
                 for line in stdout.lines() {
-                    // M4/M1/M2/M3 use different labels: "GPU use", "GPU HW active residency", etc.
-                    if line.contains("GPU ") && line.contains('%') {
-                        if let Some(pct_idx) = line.find('%') {
-                            // Look backwards for the start of the number (space or colon)
-                            let start = line[..pct_idx].rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
-                            if let Ok(pct) = line[start..pct_idx].trim().parse::<f64>() {
-                                self.gpu_usage = pct;
-                                break;
+                    let low = line.to_lowercase();
+                    // GPU usage %
+                    // Targeted search for "active residency" or "gpu use" while ignoring "idle"
+                    if low.contains('%') && (low.contains("active") || low.contains("use")) && low.contains("gpu") {
+                        if !low.contains("idle") || low.find("active").unwrap_or(usize::MAX) < low.find("idle").unwrap_or(usize::MAX) {
+                            if let Some(pct_idx) = line.find('%') {
+                                let start = line[..pct_idx].rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
+                                if let Ok(pct) = line[start..pct_idx].trim().parse::<f64>() {
+                                    found_usage = pct;
+                                }
                             }
                         }
                     }
+                    // Power readings (mW)
+                    let parse_mw = |line: &str| -> Option<f64> {
+                        // e.g. "GPU Power: 312 mW"
+                        if let Some(mw_idx) = line.to_lowercase().find("mw") {
+                            let part = line[..mw_idx].trim();
+                            let start = part.rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
+                            part[start..].trim().parse::<f64>().ok()
+                        } else {
+                            None
+                        }
+                    };
+                    if low.contains("gpu power") {
+                        self.gpu_power_mw = parse_mw(line);
+                    } else if low.contains("cpu power") && !low.contains("e-cluster") && !low.contains("p-cluster") {
+                        self.cpu_power_mw = parse_mw(line);
+                    } else if low.contains("package power") || low.contains("combined power") {
+                        self.pkg_power_mw = parse_mw(line);
+                    }
                 }
+                self.gpu_usage = found_usage;
             }
             Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
         }
 
         #[cfg(target_os = "linux")]
         {
-            // Try common sysfs paths for GPU usage
-            let paths = [
-                "/sys/class/drm/card0/device/gpu_busy_percent",
-                "/sys/class/drm/card1/device/gpu_busy_percent",
-            ];
-            for path in paths {
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    if let Ok(pct) = content.trim().parse::<f64>() {
-                        self.gpu_usage = pct;
-                        break;
+            // 1. Check NVIDIA via NVML
+            self.nvidia_gpus = crate::linux_helper::get_nvidia_gpu_info();
+            if !self.nvidia_gpus.is_empty() {
+                // If multiple, show the first one in the sparkline for now
+                self.gpu_usage = self.nvidia_gpus[0].memory_used_pct; // or usagepct if available
+                self.gpu_model = self.nvidia_gpus[0].name.clone();
+            } else {
+                // 2. Fallback to /sys (generic/integrated)
+                let paths = [
+                    "/sys/class/drm/card0/device/gpu_busy_percent",
+                    "/sys/class/drm/card1/device/gpu_busy_percent",
+                ];
+                for path in paths {
+                    if let Ok(content) = std::fs::read_to_string(path) {
+                        if let Ok(pct) = content.trim().parse::<f64>() {
+                            self.gpu_usage = pct;
+                            break;
+                        }
                     }
                 }
+            }
+            Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
+        }
+    }
+
+    /// Refresh list of macOS services via `launchctl list`.
+    pub fn refresh_services(&mut self) {
+        if let Ok(output) = std::process::Command::new("launchctl").arg("list").output() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut entries: Vec<ServiceEntry> = stdout
+                .lines()
+                .skip(1) // skip header line PID Status Label
+                .filter_map(|line| {
+                    let parts: Vec<&str> = line.splitn(3, '\t').collect();
+                    if parts.len() == 3 {
+                        let pid = parts[0].trim().parse::<i32>().ok().filter(|&p| p > 0);
+                        let status = parts[1].trim().parse::<i32>().unwrap_or(0);
+                        let label = parts[2].trim().to_string();
+                        if !label.is_empty() {
+                            return Some(ServiceEntry { pid, status, label });
+                        }
+                    }
+                    None
+                })
+                .collect();
+            entries.sort_by(|a, b| a.label.cmp(&b.label));
+            self.services = entries;
+            // Clamp selection
+            if self.service_selected >= self.services.len() && !self.services.is_empty() {
+                self.service_selected = self.services.len() - 1;
+            }
+        }
+    }
+
+    /// Refresh active TCP/UDP sockets via netstat2 (native).
+    pub fn refresh_sockets(&mut self) {
+        let mut entries: Vec<SocketEntry> = Vec::new();
+
+        let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
+        let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
+
+        if let Ok(sockets) = get_sockets_info(af_flags, proto_flags) {
+            for info in sockets {
+                let (proto, local_addr, foreign_addr, state, pid) = match info.protocol_socket_info {
+                    ProtocolSocketInfo::Tcp(tcp) => (
+                        if tcp.local_addr.is_ipv4() { "tcp4" } else { "tcp6" }.to_string(),
+                        format!("{}:{}", tcp.local_addr, tcp.local_port),
+                        format!("{}:{}", tcp.remote_addr, tcp.remote_port),
+                        format!("{:?}", tcp.state).to_uppercase(),
+                        info.associated_pids.first().copied().map(|p| p as i32),
+                    ),
+                    ProtocolSocketInfo::Udp(udp) => (
+                        if udp.local_addr.is_ipv4() { "udp4" } else { "udp6" }.to_string(),
+                        format!("{}:{}", udp.local_addr, udp.local_port),
+                        "*:*".to_string(),
+                        "NONE".to_string(),
+                        info.associated_pids.first().copied().map(|p| p as i32),
+                    ),
+                };
+
+                let process_name = if let Some(p) = pid {
+                    self.sys.process(sysinfo::Pid::from(p as usize))
+                        .map(|pr| pr.name().to_string_lossy().to_string())
+                        .unwrap_or_else(|| "-".to_string())
+                } else {
+                    "-".to_string()
+                };
+
+                // Only show established or listening or meaningful states
+                if state != "Closed" {
+                    entries.push(SocketEntry {
+                        proto,
+                        local_addr,
+                        foreign_addr,
+                        state,
+                        pid,
+                        process_name,
+                    });
+                }
+            }
+        }
+
+        entries.sort_by(|a, b| a.local_addr.cmp(&b.local_addr));
+        entries.truncate(1000);
+        self.sockets = entries;
+        if self.socket_selected >= self.sockets.len() && !self.sockets.is_empty() {
+            self.socket_selected = self.sockets.len() - 1;
+        }
+    }
+
+    /// Update per-process focus history (called every tick if focus_pid is set).
+    pub fn update_focus_history(&mut self) {
+        if let Some(pid) = self.focus_pid {
+            if let Some(proc) = self.sys.process(pid) {
+                let cpu = proc.cpu_usage() as u64;
+                let mem_total = self.get_compressed_mem(pid);
+                let mem_bytes = proc.memory() + mem_total;
+                let total_mem = self.sys.total_memory();
+                let mem_pct = if total_mem > 0 { mem_bytes * 100 / total_mem } else { 0 };
+                Self::push_history(&mut self.focus_cpu_history, cpu);
+                Self::push_history(&mut self.focus_mem_history, mem_pct);
             }
         }
     }

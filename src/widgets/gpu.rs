@@ -1,6 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Sparkline},
     Frame,
 };
@@ -12,28 +13,33 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // GPU Header (Model)
-            Constraint::Length(5), // Usage Sparkline
-            Constraint::Length(5), // Usage Gauge
-            Constraint::Min(0),    // Details
+            Constraint::Length(3), // GPU Header (Model + usage)
+            Constraint::Length(5), // GPU Usage Sparkline
+            Constraint::Length(5), // GPU Usage Gauge
+            Constraint::Min(0),    // Power panel + details
         ])
         .split(area);
 
     render_gpu_header(f, app, chunks[0]);
     render_gpu_sparkline(f, app, chunks[1]);
     render_gpu_gauge(f, app, chunks[2]);
-    render_gpu_details(f, app, chunks[3]);
+    render_power_and_details(f, app, chunks[3]);
 }
 
 fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
-    let usage = if app.gpu_usage >= 0.0 {
+    let usage_str = if app.gpu_usage >= 0.0 {
         format!("{:.1}%", app.gpu_usage)
     } else {
-        "N/A".to_string()
+        "N/A (run with sudo)".to_string()
     };
-    
-    let text = format!(" Model: {} │ Usage: {} ", app.gpu_model, usage);
+
+    let pkg_str = app.pkg_power_mw
+        .map(|mw| format!(" │ Pkg Power: {:.2} W", mw / 1000.0))
+        .unwrap_or_default();
+
+    let text = format!(" Model: {} │ GPU: {}{} ", app.gpu_model, usage_str, pkg_str);
     let p = Paragraph::new(text)
+        .style(Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD))
         .block(
             Block::default()
                 .title(" GPU Overview ")
@@ -64,7 +70,7 @@ fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
     let current = app.gpu_usage.max(0.0);
-    let ratio = (current as f64 / 100.0).clamp(0.0, 1.0);
+    let ratio = (current / 100.0).clamp(0.0, 1.0);
 
     let gauge = Gauge::default()
         .block(
@@ -80,36 +86,169 @@ fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(gauge, area);
 }
 
-fn render_gpu_details(f: &mut Frame, app: &App, area: Rect) {
-    let mut items = Vec::new();
-    
-    #[cfg(target_os = "macos")]
-    {
-        items.push(ListItem::new(" Architecture: Apple Silicon (Unified)"));
-        items.push(ListItem::new(" GPU Cores: 8 (Detected)"));
-        items.push(ListItem::new(" Performance: High-Efficiency/Performance Hybrid"));
-    }
+fn render_power_and_details(f: &mut Frame, app: &App, area: Rect) {
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
 
+    // Left: Live power readings / NVIDIA stats
     #[cfg(target_os = "linux")]
     {
-        items.push(ListItem::new(" Driver: DRM / i915 / amdgpu"));
-        items.push(ListItem::new(" Interface: PCI Express / Mobile Integrated"));
+        if !app.nvidia_gpus.is_empty() {
+             render_nvidia_panel(f, app, area);
+        } else {
+             render_power_panel(f, app, cols[0]);
+             render_hw_details(f, app, cols[1]);
+        }
     }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        render_power_panel(f, app, cols[0]);
+        render_hw_details(f, app, cols[1]);
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn render_nvidia_panel(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+
+    let mut items = Vec::new();
+    for gpu in &app.nvidia_gpus {
+        items.push(ListItem::new(format!("─── {} ───", gpu.name)));
+        items.push(ListItem::new(format!(" Temp:       {}°C", gpu.temperature)));
+        items.push(ListItem::new(format!(" VRAM Used:  {:.1}%", gpu.memory_used_pct)));
+        items.push(ListItem::new(format!(" Fan Speed:  {}%", gpu.fan_speed_pct)));
+        items.push(ListItem::new(format!(" Power:      {:.2}W", gpu.power_usage_mw as f64 / 1000.0)));
+        items.push(ListItem::new(format!(" Gfx Clock:  {}MHz", gpu.graphics_clock_mhz)));
+        items.push(ListItem::new(format!(" Mem Clock:  {}MHz", gpu.memory_clock_mhz)));
+        items.push(ListItem::new(""));
+    }
+
+    let p = List::new(items).block(
+        Block::default()
+            .title(" NVIDIA GPU Details ")
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border())
+    );
+    f.render_widget(p, chunks[0]);
+
+    render_hw_details(f, app, chunks[1]);
+}
+
+fn power_gauge(label: &str, mw: Option<f64>, max_w: f64) -> Line<'static> {
+    match mw {
+        Some(mw_val) => {
+            let watts = mw_val / 1000.0;
+            let bar_len = 20usize;
+            let filled = ((watts / max_w) * bar_len as f64).round().clamp(0.0, bar_len as f64) as usize;
+            let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(bar_len - filled));
+            let color = if watts / max_w > 0.75 { Color::Rgb(243, 139, 168) }
+                        else if watts / max_w > 0.45 { Color::Rgb(249, 226, 175) }
+                        else { Color::Rgb(166, 227, 161) };
+            Line::from(vec![
+                Span::styled(format!(" {:<18} ", label), Style::default().fg(theme::FG_MUTED)),
+                Span::styled(bar, Style::default().fg(color)),
+                Span::styled(format!("  {:.2} W", watts), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+            ])
+        }
+        None => Line::from(Span::styled(
+            format!(" {:<18} ---", label),
+            Style::default().fg(theme::FG_MUTED),
+        )),
+    }
+}
+
+fn render_power_panel(f: &mut Frame, app: &App, area: Rect) {
+    let has_data = app.gpu_power_mw.is_some() || app.cpu_power_mw.is_some() || app.pkg_power_mw.is_some();
+
+    let lines: Vec<Line> = if has_data {
+        vec![
+            Line::from(""),
+            power_gauge("CPU Power",     app.cpu_power_mw, 50.0),
+            Line::from(""),
+            power_gauge("GPU Power",     app.gpu_power_mw, 50.0),
+            Line::from(""),
+            power_gauge("Package Total", app.pkg_power_mw, 100.0),
+            Line::from(""),
+            Line::from(Span::styled(
+                " (from powermetrics — live)",
+                Style::default().fg(theme::FG_MUTED),
+            )),
+        ]
+    } else {
+        vec![
+            Line::from(""),
+            Line::from(Span::styled(" No power data.", Style::default().fg(theme::FG_MUTED))),
+            Line::from(""),
+            Line::from(Span::styled(" Run with sudo to enable", Style::default().fg(Color::Yellow))),
+            Line::from(Span::styled(" powermetrics readings.", Style::default().fg(Color::Yellow))),
+        ]
+    };
+
+    let p = Paragraph::new(lines).block(
+        Block::default()
+            .title(" Live Power Draw ")
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
+    f.render_widget(p, area);
+}
+
+fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
+    #[cfg(target_os = "macos")]
+    let items: Vec<ListItem> = vec![
+        ListItem::new(format!(" Model:          {}", app.gpu_model)),
+        ListItem::new(" Architecture:   Apple Silicon (Unified Memory)"),
+        ListItem::new(" Memory:         Shared with CPU (Unified)"),
+        ListItem::new(" Encoder:        Apple Media Engine (HW)"),
+        ListItem::new(" API Support:    Metal 3, CoreML, ANE"),
+        ListItem::new(""),
+    ];
+
+    #[cfg(target_os = "linux")]
+    let items: Vec<ListItem> = vec![
+        ListItem::new(format!(" Model:          {}", app.gpu_model)),
+        ListItem::new(" Architecture:   Discrete/Integrated GPU"),
+        ListItem::new(" Driver:         NVIDIA proprietary / Mesa"),
+        ListItem::new(" API Support:    CUDA, Vulkan, OpenGL, OpenCL"),
+        ListItem::new(" Backend:        NVML (NVIDIA) / Sysfs (Other)"),
+        ListItem::new(""),
+    ];
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    let items: Vec<ListItem> = vec![
+        ListItem::new(format!(" Model:          {}", app.gpu_model)),
+        ListItem::new(" Architecture:   Unknown"),
+        ListItem::new(""),
+    ];
+
+    let mut final_items = items;
 
     if app.gpu_usage < 0.0 {
-        items.push(ListItem::new(""));
-        items.push(ListItem::new(" [!] Real-time stats require root privileges."));
-        items.push(ListItem::new("     Ensure the app is run with sudo."));
+        final_items.push(ListItem::new(Span::styled(
+            " [sudo required for live stats]",
+            Style::default().fg(Color::Yellow),
+        )));
+    } else {
+        final_items.push(ListItem::new(Span::styled(
+            " ✓ Live metrics active",
+            Style::default().fg(Color::Rgb(166, 227, 161)),
+        )));
     }
 
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(" Hardware Details ")
-                .title_style(theme::style_title())
-                .borders(Borders::ALL)
-                .border_style(theme::style_border()),
-        );
-
+    let list = List::new(final_items).block(
+        Block::default()
+            .title(" Hardware Details ")
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
     f.render_widget(list, area);
 }

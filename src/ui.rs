@@ -40,7 +40,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" 7EMPEST FLEET MONITOR v0.2.1 ")
+                .title(format!(" 7EMPEST FLEET MONITOR v{} ", env!("CARGO_PKG_VERSION")))
                 .title_style(theme::style_title())
                 .border_style(theme::style_border()),
         )
@@ -52,23 +52,35 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
+    // If focus mode is active, render the focus dashboard instead
+    if app.focus_pid.is_some() {
+        widgets::focus::render(f, app, area);
+        return;
+    }
+
     match app.active_tab {
-        ActiveTab::Overview => widgets::overview::render(f, app, area),
-        ActiveTab::Cpu => widgets::cpu::render(f, app, area),
-        ActiveTab::Memory => widgets::memory::render(f, app, area),
-        ActiveTab::Disks => widgets::disk::render(f, app, area),
-        ActiveTab::Network => widgets::network::render(f, app, area),
+        ActiveTab::Overview  => widgets::overview::render(f, app, area),
+        ActiveTab::Cpu       => widgets::cpu::render(f, app, area),
+        ActiveTab::Memory    => widgets::memory::render(f, app, area),
+        ActiveTab::Disks     => widgets::disk::render(f, app, area),
+        ActiveTab::Network   => widgets::network::render(f, app, area),
         ActiveTab::Processes => widgets::processes::render(f, app, area),
-        ActiveTab::Gpu => widgets::gpu::render(f, app, area),
+        ActiveTab::Gpu       => widgets::gpu::render(f, app, area),
+        ActiveTab::Services  => widgets::services::render(f, app, area),
+        ActiveTab::Sockets   => widgets::sockets::render(f, app, area),
     }
 }
 
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let help_text = format!(
-        " [q] Quit │ [?] Help │ [Space] {} │ [+/-] Rate: {} │ Keys 1-7 switch tabs",
-        if app.paused { "Resume" } else { "Pause" },
-        app.tick_rate_label()
-    );
+    let help_text = if app.focus_pid.is_some() {
+        format!(" [Esc] Exit Focus │ [Space] {} │ [+/-] Rate: {}",
+            if app.paused { "Resume" } else { "Pause" },
+            app.tick_rate_label())
+    } else {
+        format!(" [q] Quit │ [?] Help │ [Space] {} │ [+/-] Rate: {} │ Tabs 1-9",
+            if app.paused { "Resume" } else { "Pause" },
+            app.tick_rate_label())
+    };
 
     let p = Paragraph::new(help_text).style(theme::style_footer());
     f.render_widget(p, area);
@@ -80,21 +92,32 @@ fn draw_help(f: &mut Frame, area: Rect) {
 
     let text = "
   NAVIGATION
-  [1-6]       Switch Tabs
+  [1-9]       Switch Tabs (9 tabs total)
   [Tab]       Next Tab
   [q]         Quit App
   [Space]     Pause/Resume
   [+ / -]     Adjust Refresh Rate
   [?]         Toggle Help
   
-  PROCESSES
-  [c/m/p/n]   Sort by CPU/Mem/Pid/Name
-  [F1-F5]     Advanced Sort Controls
-  [t]         Toggle Tree View (planned)
+  PROCESSES (Tab 6)
+  [c/m/v/p/n] Sort by CPU/Mem/Virt/Pid/Name
+  [F1-F6]     Advanced Sort Controls
+  [t]         Toggle Tree View
   [d]         Toggle Detail Panel
+  [Enter]     FOCUS: Full-screen process view
+  [Esc]       Exit Focus mode
   [/]         Filter Processes
   [k]         Open Signal Menu
   [r]         Toggle Regex Search
+  
+  SERVICES (Tab 8)
+  [↑↓/j/k]   Navigate services
+  [Enter]     Start service
+  [s]         Stop service
+  [r]         Restart service
+
+  SOCKETS (Tab 9)
+  [↑↓/j/k]   Navigate connections
   
   SIGNALS (Signal Menu)
   [Esc]       Close Menu

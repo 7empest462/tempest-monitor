@@ -14,16 +14,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     // Sort and filter
     if app.process_view == ProcessViewMode::List {
         apply_sort(&mut processes, app.sort_mode, app.sort_direction, app);
-        if !app.filter.is_empty() {
+        let filter = app.filter_text_area.lines()[0].to_string();
+        if !filter.is_empty() {
             if app.filter_regex {
-                if let Ok(re) = regex::Regex::new(&app.filter) {
+                if let Ok(re) = regex::Regex::new(&filter) {
                     processes.retain(|p| {
                         re.is_match(&p.name().to_string_lossy()) ||
                         re.is_match(&p.pid().to_string())
                     });
                 }
             } else {
-                let filter_str = app.filter.to_lowercase();
+                let filter_str = filter.to_lowercase();
                 processes.retain(|p| {
                     p.name().to_string_lossy().to_lowercase().contains(&filter_str) ||
                     p.pid().to_string().contains(&filter_str)
@@ -40,10 +41,25 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            if app.filter_active { Constraint::Length(3) } else { Constraint::Length(0) },
             Constraint::Min(0),
             if app.show_detail_panel { Constraint::Length(10) } else { Constraint::Length(0) },
         ])
         .split(area);
+
+    let filter_idx = 0;
+    let content_idx = 1;
+    let detail_idx = 2;
+
+    if app.filter_active {
+        app.filter_text_area.set_block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Filter Processes (Enter/Esc to exit) ")
+                .border_style(theme::style_tab_active())
+        );
+        f.render_widget(&app.filter_text_area, chunks[filter_idx]);
+    }
 
     let header_cells = ["PID", "Name", "CPU%", "MEM%", "TOTAL", "VIR", "Disk R/W", "User"]
         .iter()
@@ -85,7 +101,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         " Processes ({}) │ Sort: {} │ Filter: {}{} ",
         total_rows,
         app.sort_mode.label(),
-        app.filter,
+        app.filter_text_area.lines()[0],
         if app.filter_regex { " [REGEX]" } else { "" }
     );
 
@@ -111,9 +127,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(theme::style_border()),
     );
 
-    f.render_widget(table, chunks[0]);
+    f.render_widget(table, chunks[content_idx]);
     if app.show_detail_panel && total_rows > 0 {
-        render_detail_panel(f, displayed_processes[app.selected], chunks[1], app);
+        if let Some(p) = displayed_processes.get(app.selected) {
+            render_detail_panel(f, p, chunks[detail_idx], app);
+        }
     }
 
     if app.signal_menu_open {

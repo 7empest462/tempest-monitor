@@ -1,7 +1,11 @@
+pub mod chart;
 pub mod cpu;
 pub mod disk;
+pub mod focus;
+pub mod gpu;
 pub mod memory;
 pub mod network;
 pub mod overview;
 pub mod processes;
-pub mod gpu;
+pub mod services;
+pub mod sockets;
