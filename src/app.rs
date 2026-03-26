@@ -191,12 +191,21 @@ pub struct App {
     #[allow(dead_code)]
     pub gpu_vendor: String,  // "AMD", "Intel", "NVIDIA", "Apple", "Unknown"
     pub gpu_usage: f64,
-    pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics
+    pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics (macOS)
     pub cpu_power_mw: Option<f64>,
     pub pkg_power_mw: Option<f64>,
 
+    // Linux GPU stats (from sysfs / hwmon)
     #[cfg(target_os = "linux")]
     pub nvidia_gpus: Vec<NvidiaGpuInfo>,
+    #[cfg(target_os = "linux")]
+    pub gpu_temp: Option<u32>,        // degrees C
+    #[cfg(target_os = "linux")]
+    pub gpu_clock_mhz: Option<u32>,
+    #[cfg(target_os = "linux")]
+    pub gpu_vram_used: Option<u64>,   // bytes
+    #[cfg(target_os = "linux")]
+    pub gpu_vram_total: Option<u64>,  // bytes
 
     // Network Enrichment
     pub network_info: HashMap<String, NetworkInterfaceInfo>,
@@ -390,6 +399,14 @@ impl App {
 
             #[cfg(target_os = "linux")]
             nvidia_gpus: Vec::new(),
+            #[cfg(target_os = "linux")]
+            gpu_temp: None,
+            #[cfg(target_os = "linux")]
+            gpu_clock_mhz: None,
+            #[cfg(target_os = "linux")]
+            gpu_vram_used: None,
+            #[cfg(target_os = "linux")]
+            gpu_vram_total: None,
 
             network_info: HashMap::new(),
 
@@ -683,7 +700,7 @@ impl App {
                 self.gpu_usage = self.nvidia_gpus[0].memory_used_pct; // or usagepct if available
                 self.gpu_model = self.nvidia_gpus[0].name.clone();
             } else {
-                // 2. Fallback to /sys (generic/integrated)
+                // 2. Fallback to /sys (AMD/Intel integrated)
                 let paths = [
                     "/sys/class/drm/card0/device/gpu_busy_percent",
                     "/sys/class/drm/card1/device/gpu_busy_percent",
@@ -695,6 +712,14 @@ impl App {
                             break;
                         }
                     }
+                }
+
+                // Collect AMD-specific stats from sysfs/hwmon
+                self.gpu_temp = crate::linux_helper::get_amd_gpu_temp();
+                self.gpu_clock_mhz = crate::linux_helper::get_amd_gpu_clock();
+                if let Some((used, total)) = crate::linux_helper::get_amd_vram_usage() {
+                    self.gpu_vram_used = Some(used);
+                    self.gpu_vram_total = Some(total);
                 }
             }
             Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);

@@ -92,55 +92,31 @@ fn render_power_and_details(f: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
-    // Left: Live power readings / NVIDIA stats
+    #[cfg(target_os = "macos")]
+    {
+        render_macos_power_panel(f, app, cols[0]);
+        render_hw_details(f, app, cols[1]);
+    }
+
     #[cfg(target_os = "linux")]
     {
         if !app.nvidia_gpus.is_empty() {
-             render_nvidia_panel(f, app, area);
+            render_nvidia_panel(f, app, area);
         } else {
-             render_power_panel(f, app, cols[0]);
-             render_hw_details(f, app, cols[1]);
+            render_linux_gpu_stats(f, app, cols[0]);
+            render_hw_details(f, app, cols[1]);
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        render_power_panel(f, app, cols[0]);
-        render_hw_details(f, app, cols[1]);
+        render_hw_details(f, app, area);
     }
 }
 
-#[cfg(target_os = "linux")]
-fn render_nvidia_panel(f: &mut Frame, app: &App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
+// ── macOS: powermetrics power draw panel ─────────────────────────────────────
 
-    let mut items = Vec::new();
-    for gpu in &app.nvidia_gpus {
-        items.push(ListItem::new(format!("─── {} ───", gpu.name)));
-        items.push(ListItem::new(format!(" Temp:       {}°C", gpu.temperature)));
-        items.push(ListItem::new(format!(" VRAM Used:  {:.1}%", gpu.memory_used_pct)));
-        items.push(ListItem::new(format!(" Fan Speed:  {}%", gpu.fan_speed_pct)));
-        items.push(ListItem::new(format!(" Power:      {:.2}W", gpu.power_usage_mw as f64 / 1000.0)));
-        items.push(ListItem::new(format!(" Gfx Clock:  {}MHz", gpu.graphics_clock_mhz)));
-        items.push(ListItem::new(format!(" Mem Clock:  {}MHz", gpu.memory_clock_mhz)));
-        items.push(ListItem::new(""));
-    }
-
-    let p = List::new(items).block(
-        Block::default()
-            .title(" NVIDIA GPU Details ")
-            .title_style(theme::style_title())
-            .borders(Borders::ALL)
-            .border_style(theme::style_border())
-    );
-    f.render_widget(p, chunks[0]);
-
-    render_hw_details(f, app, chunks[1]);
-}
-
+#[cfg(target_os = "macos")]
 fn power_gauge(label: &str, mw: Option<f64>, max_w: f64) -> Line<'static> {
     match mw {
         Some(mw_val) => {
@@ -164,7 +140,8 @@ fn power_gauge(label: &str, mw: Option<f64>, max_w: f64) -> Line<'static> {
     }
 }
 
-fn render_power_panel(f: &mut Frame, app: &App, area: Rect) {
+#[cfg(target_os = "macos")]
+fn render_macos_power_panel(f: &mut Frame, app: &App, area: Rect) {
     let has_data = app.gpu_power_mw.is_some() || app.cpu_power_mw.is_some() || app.pkg_power_mw.is_some();
 
     let lines: Vec<Line> = if has_data {
@@ -200,6 +177,126 @@ fn render_power_panel(f: &mut Frame, app: &App, area: Rect) {
     );
     f.render_widget(p, area);
 }
+
+// ── Linux: NVIDIA panel (via NVML) ──────────────────────────────────────────
+
+#[cfg(target_os = "linux")]
+fn render_nvidia_panel(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+
+    let mut items = Vec::new();
+    for gpu in &app.nvidia_gpus {
+        items.push(ListItem::new(format!("─── {} ───", gpu.name)));
+        items.push(ListItem::new(format!(" Temp:       {}°C", gpu.temperature)));
+        items.push(ListItem::new(format!(" VRAM Used:  {:.1}%", gpu.memory_used_pct)));
+        items.push(ListItem::new(format!(" Fan Speed:  {}%", gpu.fan_speed_pct)));
+        items.push(ListItem::new(format!(" Power:      {:.2}W", gpu.power_usage_mw as f64 / 1000.0)));
+        items.push(ListItem::new(format!(" Gfx Clock:  {}MHz", gpu.graphics_clock_mhz)));
+        items.push(ListItem::new(format!(" Mem Clock:  {}MHz", gpu.memory_clock_mhz)));
+        items.push(ListItem::new(""));
+    }
+
+    let p = List::new(items).block(
+        Block::default()
+            .title(" NVIDIA GPU Details ")
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border())
+    );
+    f.render_widget(p, chunks[0]);
+
+    render_hw_details(f, app, chunks[1]);
+}
+
+// ── Linux: AMD/Intel GPU stats panel (via sysfs + hwmon) ────────────────────
+
+#[cfg(target_os = "linux")]
+fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
+    let mut lines: Vec<Line> = vec![Line::from("")];
+
+    // Temperature
+    if let Some(temp) = app.gpu_temp {
+        let color = if temp > 80 { Color::Rgb(243, 139, 168) }
+                    else if temp > 60 { Color::Rgb(249, 226, 175) }
+                    else { Color::Rgb(166, 227, 161) };
+        lines.push(Line::from(vec![
+            Span::styled(" Temperature      ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(format!("{}°C", temp), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    // GPU Clock
+    if let Some(clock) = app.gpu_clock_mhz {
+        lines.push(Line::from(vec![
+            Span::styled(" GPU Clock        ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(format!("{} MHz", clock), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    // VRAM Usage
+    if let (Some(used), Some(total)) = (app.gpu_vram_used, app.gpu_vram_total) {
+        let used_mb = used as f64 / 1_048_576.0;
+        let total_mb = total as f64 / 1_048_576.0;
+        let pct = if total > 0 { (used as f64 / total as f64 * 100.0) } else { 0.0 };
+        let color = if pct > 80.0 { Color::Rgb(243, 139, 168) }
+                    else if pct > 50.0 { Color::Rgb(249, 226, 175) }
+                    else { Color::Rgb(166, 227, 161) };
+        lines.push(Line::from(vec![
+            Span::styled(" VRAM Used        ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(
+                format!("{:.0} / {:.0} MB ({:.1}%)", used_mb, total_mb, pct),
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    // GPU Usage
+    let usage = app.gpu_usage;
+    if usage >= 0.0 {
+        let color = if usage > 80.0 { Color::Rgb(243, 139, 168) }
+                    else if usage > 50.0 { Color::Rgb(249, 226, 175) }
+                    else { Color::Rgb(166, 227, 161) };
+        lines.push(Line::from(vec![
+            Span::styled(" GPU Busy         ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(format!("{:.1}%", usage), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    // Source attribution
+    lines.push(Line::from(Span::styled(
+        " (from sysfs / hwmon — live)",
+        Style::default().fg(theme::FG_MUTED),
+    )));
+
+    // If no data at all
+    if lines.len() <= 2 {
+        lines = vec![
+            Line::from(""),
+            Line::from(Span::styled(" No GPU telemetry available.", Style::default().fg(theme::FG_MUTED))),
+            Line::from(""),
+            Line::from(Span::styled(" Check /sys/class/drm/ and", Style::default().fg(Color::Yellow))),
+            Line::from(Span::styled(" /sys/class/hwmon/ for data.", Style::default().fg(Color::Yellow))),
+        ];
+    }
+
+    let p = Paragraph::new(lines).block(
+        Block::default()
+            .title(format!(" {} GPU Stats ", app.gpu_vendor))
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
+    f.render_widget(p, area);
+}
+
+// ── Hardware details (shared, but content varies by platform) ────────────────
 
 fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
     #[cfg(target_os = "macos")]
