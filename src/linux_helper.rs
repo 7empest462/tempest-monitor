@@ -36,6 +36,7 @@ pub struct DetectedGpu {
     pub vendor: GpuVendor,
     pub model_name: String,
     pub driver: String,
+    #[allow(dead_code)]
     pub sysfs_card: String, // e.g. "card0"
 }
 

@@ -242,7 +242,7 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
     if let (Some(used), Some(total)) = (app.gpu_vram_used, app.gpu_vram_total) {
         let used_mb = used as f64 / 1_048_576.0;
         let total_mb = total as f64 / 1_048_576.0;
-        let pct = if total > 0 { (used as f64 / total as f64 * 100.0) } else { 0.0 };
+        let pct = if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 };
         let color = if pct > 80.0 { Color::Rgb(243, 139, 168) }
                     else if pct > 50.0 { Color::Rgb(249, 226, 175) }
                     else { Color::Rgb(166, 227, 161) };

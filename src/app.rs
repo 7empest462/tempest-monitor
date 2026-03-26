@@ -191,7 +191,9 @@ pub struct App {
     #[allow(dead_code)]
     pub gpu_vendor: String,  // "AMD", "Intel", "NVIDIA", "Apple", "Unknown"
     pub gpu_usage: f64,
+    #[allow(dead_code)]
     pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics (macOS)
+    #[allow(dead_code)]
     pub cpu_power_mw: Option<f64>,
     pub pkg_power_mw: Option<f64>,
 
