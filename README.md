@@ -34,15 +34,16 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 - **Battery Status**: Shows percentage, state (Charging/Discharging), and time remaining.
 - **Thermal Sensors**: Monitors temperatures across various system components.
-- **GPU Monitoring (v0.3)**: Dedicated tab for GPU utilization, clock speeds, and power draw.
+- **GPU Monitoring (v0.3.1)**: Dedicated tab for GPU utilization, clock speeds, and power draw.
     - **macOS**: Package Power (Watts) and GPU residence via `powermetrics`.
-    - **Linux**: Professional NVIDIA monitoring via `NVML`.
+    - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
+    - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
 
 ## 🛡️ High-Privilege Monitoring
 
 Some advanced features require elevated privileges to access hardware statistics:
 - **GPU Utilization**: On macOS, `powermetrics` requires `sudo`.
-- **System Services**: On macOS, managing `launchctl` services requires `sudo`.
+- **System Services**: On macOS, managing `launchctl` services requires `sudo`. On Linux, `systemctl` services are listed automatically (user + system).
 - **Sockets/Processes**: Full process metadata (compressed memory) requires `sudo`.
 
 To run without typing your password every time, you can add this to your `/etc/sudoers` (using `visudo`):
@@ -61,7 +62,7 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab`
 - `5`: **Network** - Per-interface traffic stats and interface info (MAC, Speed, Duplex).
 - `6`: **Processes** - The interactive task manager. Hit `Enter` for Focus Mode or `k` for Signal Menu.
 - `7`: **GPU** - Real-time utilization and power consumption charts.
-- `8`: **Services** - (macOS) Interactive `launchctl` service manager. Start/Stop with `Enter`/`s`.
+- `8`: **Services** - macOS: Interactive `launchctl` manager. Linux: `systemd` unit browser. Start/Stop with `Enter`/`s`.
 - `9`: **Sockets** - Real-time network socket enumeration (replacing `netstat`).
 
 ## Controls
@@ -90,6 +91,17 @@ Download the pre-compiled binary for your architecture from the [GitHub Actions 
 
 ### From Source
 Ensure you have [Rust](https://rustup.rs/) installed.
+
+#### Linux Build Dependencies
+
+Some Linux distributions require additional development libraries before compiling:
+
+| Distro | Install Command |
+|--------|----------------|
+| **Debian / Ubuntu** | `sudo apt install libfontconfig1-dev libssl-dev pkg-config` |
+| **Fedora / RHEL** | `sudo dnf install fontconfig-devel openssl-devel pkg-config` |
+| **Arch Linux** | `sudo pacman -S fontconfig openssl pkgconf` |
+| **SteamOS (Steam Deck)** | `sudo steamos-readonly disable && sudo pacman -S fontconfig openssl pkgconf` |
 
 ```bash
 git clone https://github.com/7empest462/tempest-monitor.git
