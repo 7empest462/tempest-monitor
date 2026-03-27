@@ -10,6 +10,9 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 ![Disks](README_assets/screenshots/disks.png)
 ![Network](README_assets/screenshots/network.png)
 ![Processes](README_assets/screenshots/processes.png)
+![GPU](README_assets/screenshots/gpu.png)
+![Services](README_assets/screenshots/services.png)
+![Sockets](README_assets/screenshots/sockets.png)
 
 ## Features
 
