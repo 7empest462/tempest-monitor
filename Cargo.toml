@@ -1,9 +1,32 @@
 [package]
 name = "tempest-monitor"
 version = "0.3.1"
+authors = ["7empest_mac"]
+description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
+repository = "https://github.com/7empest462/tempest-monitor"
+homepage = "https://github.com/7empest462/tempest-monitor"
+documentation = "https://docs.rs/tempest-monitor"
 license = "MIT"
+readme = "README.md"
+keywords = ["tui", "system-monitor", "telemetry", "macos", "linux"]
+categories = ["command-line-utilities", "visualization", "os::linux-apis", "os::macos-apis"]
 edition = "2024"
 default-run = "tempest-monitor"
+
+[lib]
+name = "tempest_monitor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tempest-monitor"
+path = "src/main.rs"
+
+[features]
+default = ["full"]
+full = ["database", "metrics", "export"]
+database = ["dep:sqlx"]
+metrics = ["dep:reqwest", "dep:metrics", "dep:metrics-exporter-prometheus"]
+export = ["dep:plotters"]
 
 [dependencies]
 # ── Core TUI ──────────────────────────────────────────────────────────────────
@@ -36,7 +59,7 @@ pnet = "0.35"
 
 # ── Phase 12: Persistence ────────────────────────────────────────────────────
 tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"], optional = true }
 
 # ── Phase 13: Alerting ───────────────────────────────────────────────────────
 notify-rust = "4"
@@ -44,16 +67,17 @@ log = "0.4"
 env_logger = "0.11"
 
 # ── Phase 14: Metrics Export ─────────────────────────────────────────────────
-reqwest = { version = "0.12", features = ["json"] }
-metrics = "0.24"
-metrics-exporter-prometheus = "0.16"
+reqwest = { version = "0.12", features = ["json"], optional = true }
+metrics = { version = "0.24", optional = true }
+metrics-exporter-prometheus = { version = "0.16", optional = true }
 serde_json = "1"
 
 # ── Phase 15: Visualization ──────────────────────────────────────────────────
-plotters = "0.3"
+plotters = { version = "0.3", optional = true }
 
 # ── Platform-specific ────────────────────────────────────────────────────────
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = "0.17"
 nvml-wrapper = "0.10"
 ethtool = "0.2"
+openssl = { version = "0.10", features = ["vendored"] }

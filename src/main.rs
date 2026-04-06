@@ -1,19 +1,3 @@
-mod alerts;
-mod cli;
-mod config;
-mod db;
-mod error;
-mod export;
-mod input;
-#[cfg(target_os = "linux")]
-mod linux_helper;
-#[cfg(target_os = "macos")]
-mod macos_helper;
-mod theme;
-mod ui;
-mod widgets;
-mod app;
-
 use std::io;
 use std::time::Duration;
 use crossterm::{
@@ -24,9 +8,18 @@ use crossterm::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
-use crate::app::App;
-use crate::cli::CliArgs;
-use crate::config::TempestConfig;
+#[cfg(feature = "database")]
+use tempest_monitor::db;
+use tempest_monitor::{
+    App,
+    cli::CliArgs,
+    config::TempestConfig,
+    ui,
+    input,
+    alerts,
+};
+#[cfg(any(feature = "metrics", feature = "export"))]
+use tempest_monitor::export;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,13 +48,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("Config: {:?}", cfg);
 
     // Initialize Database
-    let db = db::Database::new().await?;
-    let db = std::sync::Arc::new(db);
-
-    // Startup pruning (7 days)
-    let _ = db.prune_old_data(7).await;
+    #[cfg(feature = "database")]
+    let db = {
+        let db = db::Database::new().await?;
+        let db = std::sync::Arc::new(db);
+        // Startup pruning (7 days)
+        let _ = db.prune_old_data(7).await;
+        db
+    };
 
     // Initialize Metrics Export
+    #[cfg(feature = "metrics")]
     if cfg.metrics_port > 0 {
         export::init_prometheus(cfg.metrics_port);
     }
@@ -76,14 +73,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App::new_with_config(&cli, &cfg);
     
     // Handle One-shot Exports
-    if let Some(ref path) = cli.export_json {
+    if let Some(ref _path) = cli.export_json {
         app.refresh();
-        let data = export::export_json(&app);
-        std::fs::write(path, data)?;
-        println!("JSON snapshot exported to {}", path);
+        #[cfg(any(feature = "metrics", feature = "export"))]
+        {
+            let data = export::export_json(&app);
+            std::fs::write(_path, data)?;
+            println!("JSON snapshot exported to {}", _path);
+        }
+        #[cfg(not(any(feature = "metrics", feature = "export")))]
+        println!("JSON export requires 'metrics' or 'export' feature.");
+        
         return Ok(());
     }
 
+    #[cfg(feature = "export")]
     if let Some(ref path) = cli.export_chart {
         app.refresh();
         export::export_chart_png(&app, path)?;
@@ -91,7 +95,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    #[cfg(feature = "database")]
     let res = run_app(&mut terminal, app, db).await;
+    #[cfg(not(feature = "database"))]
+    let res = run_app_no_db(&mut terminal, app).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -109,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(feature = "database")]
 async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut app: App,
@@ -142,23 +150,27 @@ async fn run_app(
             alert_engine.check_rules(&app, &app.config.alerts);
 
             // Phase 14: Metrics Export
-            export::update_metrics(&app);
-            if !app.config.metrics_push_url.is_empty() {
-                let url = app.config.metrics_push_url.clone();
-                let data = export::export_json(&app);
-                tokio::spawn(async move {
-                    let client = reqwest::Client::new();
-                    let _ = client.post(url)
-                        .header("Content-Type", "application/json")
-                        .body(data)
-                        .send()
-                        .await;
-                });
+            #[cfg(feature = "metrics")]
+            {
+                export::update_metrics(&app);
+                if !app.config.metrics_push_url.is_empty() {
+                    let url = app.config.metrics_push_url.clone();
+                    let data = export::export_json(&app);
+                    tokio::spawn(async move {
+                        let client = reqwest::Client::new();
+                        let _ = client.post(url)
+                            .header("Content-Type", "application/json")
+                            .body(data)
+                            .send()
+                            .await;
+                    });
+                }
             }
 
             last_tick = std::time::Instant::now();
 
             // Periodic persistence
+            #[cfg(feature = "database")]
             if last_save.elapsed() >= save_interval {
                 let db_clone = db.clone();
                 let cpu = app.cpu_history.iter().copied().last().unwrap_or(0) as f64;
@@ -173,6 +185,42 @@ async fn run_app(
 
                 last_save = std::time::Instant::now();
             }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "database"))]
+async fn run_app_no_db(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mut app: App,
+) -> io::Result<()> {
+    let mut last_tick = std::time::Instant::now();
+    let mut alert_engine = alerts::AlertEngine::new();
+
+    loop {
+        terminal.draw(|f| ui::draw(f, &mut app))?;
+
+        let timeout = app.tick_rate
+            .checked_sub(last_tick.elapsed())
+            .unwrap_or(Duration::from_secs(0));
+
+        if event::poll(timeout)? {
+            if let event::Event::Key(key) = event::read()? {
+                if !input::handle_key(key, &mut app) {
+                    break;
+                }
+            }
+        }
+
+        if last_tick.elapsed() >= app.tick_rate {
+            app.refresh();
+            app.update_focus_history();
+            
+            // Phase 13: Alerting
+            alert_engine.check_rules(&app, &app.config.alerts);
+
+            last_tick = std::time::Instant::now();
         }
     }
     Ok(())

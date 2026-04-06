@@ -1,3 +1,5 @@
+#![cfg(feature = "database")]
+
 use sqlx::sqlite::SqlitePool;
 use std::path::PathBuf;
 

@@ -74,3 +74,52 @@ pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
         compressed: info.compressed,
     })
 }
+
+/// Retrieves Apple Silicon GPU usage and power from powermetrics.
+pub fn get_macos_gpu_info() -> (f64, Option<f64>, Option<f64>) {
+    let output = std::process::Command::new("sudo")
+        .args(&["powermetrics", "-n", "1", "-i", "200", "--samplers", "gpu_power"])
+        .output();
+
+    if let Ok(o) = output {
+        let stdout = String::from_utf8_lossy(&o.stdout);
+        let mut gpu_use = 0.0;
+        let mut gpu_mw = None;
+        let cpu_mw = None;
+
+        for line in stdout.lines() {
+            if line.contains("GPU Active Residency") {
+                if let Some(val) = line.split(':').last() {
+                    gpu_use = val.trim().trim_end_matches('%').parse().unwrap_or(0.0);
+                }
+            }
+            if line.contains("GPU Power") {
+                if let Some(val) = line.split(':').last() {
+                    gpu_mw = val.trim().trim_end_matches("mW").parse().ok();
+                }
+            }
+            if line.contains("Combined Power") {
+                 // Not used yet but good to have
+            }
+        }
+        return (gpu_use, gpu_mw, cpu_mw);
+    }
+    (0.0, None, None)
+}
+
+/// Decodes cryptic macOS SMC sensor keys into human-readable labels.
+/// Common keys for Apple Silicon (M1/M2/M3) and Intel Macs included.
+pub fn decode_smc_label(label: &str) -> String {
+    match label {
+        "TG0D" | "TG1D" => "GPU Die".to_string(),
+        "TG0P" | "TG1P" => "GPU Proximity".to_string(),
+        "Tp0P" | "Tp0c" => "SOC Die".to_string(),
+        "TA0P" => "Airflow Proximity".to_string(),
+        "TB0T" => "Battery".to_string(),
+        "Ts0P" | "Ts0S" => "Palm Rest / Case".to_string(),
+        "TN0P" | "TN0D" => "NAND (Storage)".to_string(),
+        "Tm0P" | "Tm0D" => "Mainboard".to_string(),
+        "TC0D" | "TC0c" | "TC0P" => "CPU Die/Proximity".to_string(),
+        _ => label.to_string(),
+    }
+}

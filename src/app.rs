@@ -6,7 +6,7 @@ use sysinfo::{
     RefreshKind, System,
 };
 
-use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
+// use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
 // use pnet::datalink;
 use tui_textarea::TextArea;
 
@@ -143,24 +143,8 @@ pub struct BatteryInfo {
 
 // ── Service entry (from launchctl / systemctl) ───────────────────────────────
 
-#[derive(Clone)]
-pub struct ServiceEntry {
-    pub pid: Option<i32>,
-    pub status: i32,
-    pub label: String,
-}
-
-// ── Socket entry (active TCP/UDP connections) ────────────────────────────────
-
-#[derive(Clone)]
-pub struct SocketEntry {
-    pub proto: String,
-    pub local_addr: String,
-    pub foreign_addr: String,
-    pub state: String,
-    pub pid: Option<i32>,
-    pub process_name: String,
-}
+// Structs moved to system_helper.rs for library portability
+pub use crate::system_helper::{ServiceEntry, SocketEntry};
 
 #[derive(Clone)]
 pub struct NetworkInterfaceInfo {
@@ -730,78 +714,8 @@ impl App {
 
     /// Refresh list of services via `launchctl` (macOS) or `systemctl` (Linux).
     pub fn refresh_services(&mut self) {
-        #[cfg(target_os = "macos")]
-        {
-            if let Ok(output) = std::process::Command::new("launchctl").arg("list").output() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let mut entries: Vec<ServiceEntry> = stdout
-                    .lines()
-                    .skip(1)
-                    .filter_map(|line| {
-                        let parts: Vec<&str> = line.splitn(3, '\t').collect();
-                        if parts.len() == 3 {
-                            let pid = parts[0].trim().parse::<i32>().ok().filter(|&p| p > 0);
-                            let status = parts[1].trim().parse::<i32>().unwrap_or(0);
-                            let label = parts[2].trim().to_string();
-                            if !label.is_empty() {
-                                return Some(ServiceEntry { pid, status, label });
-                            }
-                        }
-                        None
-                    })
-                    .collect();
-                entries.sort_by(|a, b| a.label.cmp(&b.label));
-                self.services = entries;
-            }
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            // Try system-level first, then user-level as fallback (Steam Deck)
-            let try_systemctl = |extra_args: &[&str]| -> Vec<ServiceEntry> {
-                let mut args = vec!["list-units", "--type=service", "--all", "--no-pager", "--no-legend", "--plain"];
-                args.extend_from_slice(extra_args);
-                
-                let output = match std::process::Command::new("systemctl")
-                    .args(&args)
-                    .output()
-                {
-                    Ok(o) => o,
-                    Err(_) => return Vec::new(),
-                };
-
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                stdout
-                    .lines()
-                    .filter_map(|line| {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 4 {
-                            let label = parts[0].to_string();
-                            let active = parts[2];
-                            let sub = parts[3];
-                            // Mark running services with a synthetic PID indicator
-                            let pid = if sub == "running" { Some(1) } else { None };
-                            let status = if active == "active" { 0 } else { -1 };
-                            Some(ServiceEntry { pid, status, label })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            };
-
-            // Try system services first  
-            let mut entries = try_systemctl(&[]);
-            
-            // If empty, try user services (Steam Deck often runs as user 'deck')
-            if entries.is_empty() {
-                entries = try_systemctl(&["--user"]);
-            }
-
-            entries.sort_by(|a, b| a.label.cmp(&b.label));
-            self.services = entries;
-        }
-
+        self.services = crate::system_helper::get_services();
+        
         // Clamp selection
         if self.service_selected >= self.services.len() && !self.services.is_empty() {
             self.service_selected = self.services.len() - 1;
@@ -810,55 +724,9 @@ impl App {
 
     /// Refresh active TCP/UDP sockets via netstat2 (native).
     pub fn refresh_sockets(&mut self) {
-        let mut entries: Vec<SocketEntry> = Vec::new();
+        self.sockets = crate::system_helper::get_sockets(&self.sys);
 
-        let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
-        let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
-
-        if let Ok(sockets) = get_sockets_info(af_flags, proto_flags) {
-            for info in sockets {
-                let (proto, local_addr, foreign_addr, state, pid) = match info.protocol_socket_info {
-                    ProtocolSocketInfo::Tcp(tcp) => (
-                        if tcp.local_addr.is_ipv4() { "tcp4" } else { "tcp6" }.to_string(),
-                        format!("{}:{}", tcp.local_addr, tcp.local_port),
-                        format!("{}:{}", tcp.remote_addr, tcp.remote_port),
-                        format!("{:?}", tcp.state).to_uppercase(),
-                        info.associated_pids.first().copied().map(|p| p as i32),
-                    ),
-                    ProtocolSocketInfo::Udp(udp) => (
-                        if udp.local_addr.is_ipv4() { "udp4" } else { "udp6" }.to_string(),
-                        format!("{}:{}", udp.local_addr, udp.local_port),
-                        "*:*".to_string(),
-                        "NONE".to_string(),
-                        info.associated_pids.first().copied().map(|p| p as i32),
-                    ),
-                };
-
-                let process_name = if let Some(p) = pid {
-                    self.sys.process(sysinfo::Pid::from(p as usize))
-                        .map(|pr| pr.name().to_string_lossy().to_string())
-                        .unwrap_or_else(|| "-".to_string())
-                } else {
-                    "-".to_string()
-                };
-
-                // Only show established or listening or meaningful states
-                if state != "Closed" {
-                    entries.push(SocketEntry {
-                        proto,
-                        local_addr,
-                        foreign_addr,
-                        state,
-                        pid,
-                        process_name,
-                    });
-                }
-            }
-        }
-
-        entries.sort_by(|a, b| a.local_addr.cmp(&b.local_addr));
-        entries.truncate(1000);
-        self.sockets = entries;
+        // Clamp selection
         if self.socket_selected >= self.sockets.len() && !self.sockets.is_empty() {
             self.socket_selected = self.sockets.len() - 1;
         }

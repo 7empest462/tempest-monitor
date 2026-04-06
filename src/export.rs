@@ -1,9 +1,12 @@
+#[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
 use crate::app::App;
 use serde_json::json;
 use std::net::SocketAddr;
+#[cfg(feature = "export")]
 use plotters::prelude::*;
 
+#[cfg(feature = "metrics")]
 pub fn init_prometheus(port: u16) {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let builder = PrometheusBuilder::new().with_http_listener(addr);
@@ -14,6 +17,7 @@ pub fn init_prometheus(port: u16) {
     }
 }
 
+#[cfg(feature = "metrics")]
 pub fn update_metrics(app: &App) {
     let cpu = app.cpu_history.iter().copied().last().unwrap_or(0) as f64;
     let mem = app.sys.used_memory() as f64 / app.sys.total_memory() as f64 * 100.0;
@@ -61,6 +65,7 @@ pub fn export_json(app: &App) -> String {
 }
 
 
+#[cfg(feature = "export")]
 pub fn export_chart_png(app: &App, path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(path, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
