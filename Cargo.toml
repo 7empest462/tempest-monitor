@@ -12,6 +12,7 @@ keywords = ["tui", "system-monitor", "telemetry", "macos", "linux"]
 categories = ["command-line-utilities", "visualization", "os::linux-apis", "os::macos-apis"]
 edition = "2024"
 default-run = "tempest-monitor"
+exclude = ["README_assets/*", ".github/*"]
 
 [lib]
 name = "tempest_monitor"
