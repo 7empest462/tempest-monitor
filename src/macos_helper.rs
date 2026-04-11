@@ -92,13 +92,20 @@ pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
 
     let is_root = unsafe { libc::getuid() } == 0;
     
-    // Only attempt powermetrics if we are root OR if we want to risk a sudo prompt (library users shouldn't risk a prompt)
-    // For the library, we'll only do it if we are already root.
-    if is_root {
-        if let Ok(output) = std::process::Command::new("powermetrics")
-            .args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"])
-            .output() {
-            
+    // Attempt to run powermetrics. If not root, use 'sudo -n' to try cached credentials
+    // without ever prompting the user for a password (safe for library use).
+    let mut cmd = if is_root {
+        let mut c = std::process::Command::new("powermetrics");
+        c.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
+        c
+    } else {
+        let mut c = std::process::Command::new("sudo");
+        c.args(&["-n", "powermetrics", "-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
+        c
+    };
+
+    if let Ok(output) = cmd.output() {
+        if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 let low = line.to_lowercase();
@@ -118,12 +125,12 @@ pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
                     }
                 }
             }
+        } else {
+            // sudo -n failed (no cached credentials), return -1.0 to indicate N/A
+            tel.usage_pct = -1.0;
         }
     } else {
-        // FALLBACK: If not root, we can't get power, but maybe we can get basic info
-        // In a real IOKit implementation we'd query for usage here.
-        // For now, we return 0.0 usage to indicate "unknown/unprivileged"
-        tel.usage_pct = -1.0; 
+        tel.usage_pct = -1.0;
     }
 
     tel

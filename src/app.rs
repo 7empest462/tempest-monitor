@@ -294,7 +294,7 @@ impl App {
             _ => ActiveTab::Overview,
         };
 
-        App {
+        let mut app = App {
             config: config.clone(),
             sys,
             networks: Networks::new(),
@@ -371,7 +371,12 @@ impl App {
 
             #[cfg(target_os = "macos")]
             compressed_mem_cache: HashMap::new(),
-        }
+        };
+
+        // Perform initial GPU detection to populate model and initial stats
+        app.refresh_gpu();
+        
+        app
     }
 
     /// Push a value into a history buffer, evicting the oldest if full.
