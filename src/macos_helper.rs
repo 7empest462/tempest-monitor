@@ -83,6 +83,28 @@ pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
     })
 }
 
+/// Helper to get GPU usage from IOKit (ioreg). No sudo required.
+/// Accurate for Apple Silicon AGX Accelerator.
+pub fn get_ioreg_gpu_usage() -> f64 {
+    let output = std::process::Command::new("ioreg")
+        .args(["-r", "-c", "AGXAccelerator"])
+        .output()
+        .ok();
+        
+    if let Some(out) = output {
+        let s = String::from_utf8_lossy(&out.stdout);
+        // "Device Utilization %"=7
+        if let Ok(re) = regex::Regex::new(r#""Device Utilization %"=(\d+)"#) {
+            if let Some(caps) = re.captures(&s) {
+                if let Some(m) = caps.get(1) {
+                    return m.as_str().parse::<f64>().unwrap_or(0.0);
+                }
+            }
+        }
+    }
+    0.0
+}
+
 /// Retrieves Apple Silicon GPU usage and power from powermetrics or IOKit fallbacks.
 /// `allow_prompt` should be true for interactive TUI use and false for background library use.
 pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
@@ -92,12 +114,6 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     };
 
     let is_root = unsafe { libc::getuid() } == 0;
-    
-    // Tiered strategy:
-    // 1. If root, run directly.
-    // 2. If not root, try non-interactive 'sudo -n'.
-    // 3. If 'sudo -n' fails, and allow_prompt is true, try 'sudo' (allow prompt).
-    // 4. Otherwise, fail gracefully.
     
     let run_powermetrics = |use_sudo: bool, non_interactive: bool| -> Option<String> {
         let mut cmd = if use_sudo {
@@ -153,8 +169,8 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
             }
         }
     } else {
-        // If we still have no data, set usage to -1.0 to indicate N/A (run with sudo)
-        tel.usage_pct = -1.0;
+        // FALLBACK: Use IOKit/ioreg (Privilege-free) for usage %
+        tel.usage_pct = get_ioreg_gpu_usage();
     }
 
     tel
