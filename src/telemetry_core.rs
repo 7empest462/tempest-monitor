@@ -17,18 +17,36 @@ pub struct TelemetrySnapshot {
 
 #[cfg(target_os = "macos")]
 pub fn get_macos_telemetry() -> TelemetrySnapshot {
-    // Logic extracted from app.rs for macOS
-    // For now, returning a subset. We will refine this.
+    let gpu = crate::macos_helper::get_macos_gpu_info();
+    
     TelemetrySnapshot {
         cpu_usage_avg: 0.0, // sysinfo required
         ram_used_gb: 0.0,
         ram_total_gb: 0.0,
-        gpu_usage_pct: 0.0,
-        gpu_model: "Apple M4".into(),
+        gpu_usage_pct: gpu.usage_pct,
+        gpu_model: gpu.model,
         battery_pct: None,
         battery_state: None,
         cpu_temp_c: None,
         gpu_temp_c: None,
-        power_usage_mw: None,
+        power_usage_mw: gpu.power_mw,
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn get_linux_telemetry() -> TelemetrySnapshot {
+    let gpu = crate::linux_helper::collect_gpu_telemetry();
+    
+    TelemetrySnapshot {
+        cpu_usage_avg: 0.0, // sysinfo required
+        ram_used_gb: 0.0,
+        ram_total_gb: 0.0,
+        gpu_usage_pct: gpu.usage_pct,
+        gpu_model: gpu.model,
+        battery_pct: None,
+        battery_state: None,
+        cpu_temp_c: None,
+        gpu_temp_c: gpu.temp_c.map(|t| t as f32),
+        power_usage_mw: None, // power capped on linux sysfs often
     }
 }

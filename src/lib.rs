@@ -28,3 +28,8 @@ pub mod widgets;
 pub use app::App;
 pub use config::TempestConfig;
 pub use telemetry_core::TelemetrySnapshot;
+
+#[cfg(target_os = "linux")]
+pub use linux_helper::{LinuxGpuTelemetry, collect_gpu_telemetry as collect_linux_gpu};
+#[cfg(target_os = "macos")]
+pub use macos_helper::{MacOSGpuTelemetry, get_macos_gpu_info as collect_macos_gpu};

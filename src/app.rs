@@ -624,90 +624,27 @@ impl App {
 
         #[cfg(target_os = "macos")]
         {
-            let is_root = unsafe { libc::getuid() } == 0;
-            let mut cmd = if is_root {
-                std::process::Command::new("powermetrics")
-            } else {
-                let mut c = std::process::Command::new("sudo");
-                c.arg("powermetrics");
-                c
-            };
-
-            if let Ok(output) = cmd
-                .args(["--samplers", "gpu_power,cpu_power", "-n", "1", "-i", "100"])
-                .output()
-            {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let mut found_usage = -1.0;
-                for line in stdout.lines() {
-                    let low = line.to_lowercase();
-                    // GPU usage %
-                    // Targeted search for "active residency" or "gpu use" while ignoring "idle"
-                    if low.contains('%') && (low.contains("active") || low.contains("use")) && low.contains("gpu") {
-                        if !low.contains("idle") || low.find("active").unwrap_or(usize::MAX) < low.find("idle").unwrap_or(usize::MAX) {
-                            if let Some(pct_idx) = line.find('%') {
-                                let start = line[..pct_idx].rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
-                                if let Ok(pct) = line[start..pct_idx].trim().parse::<f64>() {
-                                    found_usage = pct;
-                                }
-                            }
-                        }
-                    }
-                    // Power readings (mW)
-                    let parse_mw = |line: &str| -> Option<f64> {
-                        // e.g. "GPU Power: 312 mW"
-                        if let Some(mw_idx) = line.to_lowercase().find("mw") {
-                            let part = line[..mw_idx].trim();
-                            let start = part.rfind(|c: char| c == ' ' || c == ':').map(|i| i + 1).unwrap_or(0);
-                            part[start..].trim().parse::<f64>().ok()
-                        } else {
-                            None
-                        }
-                    };
-                    if low.contains("gpu power") {
-                        self.gpu_power_mw = parse_mw(line);
-                    } else if low.contains("cpu power") && !low.contains("e-cluster") && !low.contains("p-cluster") {
-                        self.cpu_power_mw = parse_mw(line);
-                    } else if low.contains("package power") || low.contains("combined power") {
-                        self.pkg_power_mw = parse_mw(line);
-                    }
-                }
-                self.gpu_usage = found_usage;
-            }
+            let tel = crate::macos_helper::get_macos_gpu_info();
+            self.gpu_usage = tel.usage_pct;
+            self.gpu_power_mw = tel.power_mw;
+            self.pkg_power_mw = tel.package_power_mw;
+            self.gpu_model = tel.model;
+            
             Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
         }
 
         #[cfg(target_os = "linux")]
         {
-            // 1. Check NVIDIA via NVML
-            self.nvidia_gpus = crate::linux_helper::get_nvidia_gpu_info();
-            if !self.nvidia_gpus.is_empty() {
-                // If multiple, show the first one in the sparkline for now
-                self.gpu_usage = self.nvidia_gpus[0].memory_used_pct; // or usagepct if available
-                self.gpu_model = self.nvidia_gpus[0].name.clone();
-            } else {
-                // 2. Fallback to /sys (AMD/Intel integrated)
-                let paths = [
-                    "/sys/class/drm/card0/device/gpu_busy_percent",
-                    "/sys/class/drm/card1/device/gpu_busy_percent",
-                ];
-                for path in paths {
-                    if let Ok(content) = std::fs::read_to_string(path) {
-                        if let Ok(pct) = content.trim().parse::<f64>() {
-                            self.gpu_usage = pct;
-                            break;
-                        }
-                    }
-                }
+            let tel = crate::linux_helper::collect_gpu_telemetry();
+            self.gpu_usage = tel.usage_pct;
+            self.gpu_temp = tel.temp_c;
+            self.gpu_clock_mhz = tel.clock_mhz;
+            self.gpu_vram_used = tel.vram_used;
+            self.gpu_vram_total = tel.vram_total;
+            self.gpu_model = tel.model;
+            self.gpu_driver = tel.driver;
+            self.nvidia_gpus = tel.nvidia_info;
 
-                // Collect AMD-specific stats from sysfs/hwmon
-                self.gpu_temp = crate::linux_helper::get_amd_gpu_temp();
-                self.gpu_clock_mhz = crate::linux_helper::get_amd_gpu_clock();
-                if let Some((used, total)) = crate::linux_helper::get_amd_vram_usage() {
-                    self.gpu_vram_used = Some(used);
-                    self.gpu_vram_total = Some(total);
-                }
-            }
             Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
         }
     }
