@@ -83,8 +83,6 @@ pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
     })
 }
 
-/// Helper to get GPU usage from IOKit (ioreg). No sudo required.
-/// Accurate for Apple Silicon AGX Accelerator.
 pub fn get_ioreg_gpu_usage() -> f64 {
     let output = std::process::Command::new("ioreg")
         .args(["-r", "-c", "AGXAccelerator"])
@@ -93,8 +91,10 @@ pub fn get_ioreg_gpu_usage() -> f64 {
         
     if let Some(out) = output {
         let s = String::from_utf8_lossy(&out.stdout);
-        // "Device Utilization %"=7
-        if let Ok(re) = regex::Regex::new(r#""Device Utilization %"=(\d+)"#) {
+        // Matches: "Device Utilization %" = 67 OR "Device Utilization %"=67 OR Device Utilization %=67
+        // Hardened to be case-insensitive and handle optional surrounding quotes
+        let re_str = r#"(?i)"?Device Utilization %"?\s*[=:]\s*(\d+)"#;
+        if let Ok(re) = regex::Regex::new(re_str) {
             if let Some(caps) = re.captures(&s) {
                 if let Some(m) = caps.get(1) {
                     return m.as_str().parse::<f64>().unwrap_or(0.0);
@@ -112,6 +112,9 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
         model: get_soc_model(),
         ..Default::default()
     };
+
+    // 1. Definitively get usage % from IOKit (no sudo required, very reliable on Apple Silicon)
+    tel.usage_pct = get_ioreg_gpu_usage();
 
     let is_root = unsafe { libc::getuid() } == 0;
     
@@ -152,9 +155,18 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     if let Some(stdout) = output {
         for line in stdout.lines() {
             let low = line.to_lowercase();
-            if low.contains("gpu active residency") {
-                if let Some(val) = line.split(':').last() {
-                    tel.usage_pct = val.trim().trim_end_matches('%').parse().unwrap_or(0.0);
+            // Handle both "GPU active residency" (old) and "GPU HW active residency" (M4)
+            if low.contains("gpu") && low.contains("active residency") {
+                if let Some(val) = line.split(':').nth(1) {
+                    // Extract usage before any parentheses (handles M4 frequency residency)
+                    let clean_val = val.split('(').next().unwrap_or(val).trim();
+                    let residency: f64 = clean_val.trim_end_matches('%').parse().unwrap_or(0.0);
+                    
+                    // Only override ioreg if residency is significantly different or ioreg failed
+                    // This ensures we trust powermetrics if it has high-fidelity data, but don't break if it returns 0.0
+                    if residency > 0.0 || tel.usage_pct == 0.0 {
+                        tel.usage_pct = residency;
+                    }
                 }
             }
             if low.contains("gpu power") {
@@ -168,9 +180,6 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
                 }
             }
         }
-    } else {
-        // FALLBACK: Use IOKit/ioreg (Privilege-free) for usage %
-        tel.usage_pct = get_ioreg_gpu_usage();
     }
 
     tel

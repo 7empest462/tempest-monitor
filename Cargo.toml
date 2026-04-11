@@ -1,6 +1,6 @@
 [package]
 name = "tempest-monitor"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["7empest_mac"]
 description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
 repository = "https://github.com/7empest462/tempest-monitor"
