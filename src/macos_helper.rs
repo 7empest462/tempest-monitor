@@ -84,7 +84,8 @@ pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
 }
 
 /// Retrieves Apple Silicon GPU usage and power from powermetrics or IOKit fallbacks.
-pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
+/// `allow_prompt` should be true for interactive TUI use and false for background library use.
+pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     let mut tel = MacOSGpuTelemetry {
         model: get_soc_model(),
         ..Default::default()
@@ -95,11 +96,9 @@ pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
     // Tiered strategy:
     // 1. If root, run directly.
     // 2. If not root, try non-interactive 'sudo -n'.
-    // 3. If 'sudo -n' fails, and we are in a TTY, try 'sudo' (allow prompt).
+    // 3. If 'sudo -n' fails, and allow_prompt is true, try 'sudo' (allow prompt).
     // 4. Otherwise, fail gracefully.
     
-    let is_atty = unsafe { libc::isatty(libc::STDIN_FILENO) == 1 };
-
     let run_powermetrics = |use_sudo: bool, non_interactive: bool| -> Option<String> {
         let mut cmd = if use_sudo {
             let mut c = std::process::Command::new("sudo");
@@ -125,8 +124,8 @@ pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
     } else {
         // Try non-interactive sudo first (uses cached credentials)
         run_powermetrics(true, true).or_else(|| {
-            // If failed and we are in a terminal, try interactive sudo
-            if is_atty {
+            // If failed and caller allows it, try interactive sudo (may prompt for password)
+            if allow_prompt {
                 run_powermetrics(true, false)
             } else {
                 None

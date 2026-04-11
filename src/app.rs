@@ -591,7 +591,7 @@ impl App {
 
         #[cfg(target_os = "macos")]
         {
-            let tel = crate::macos_helper::get_macos_gpu_info();
+            let tel = crate::macos_helper::get_macos_gpu_info(true);
             self.gpu_usage = tel.usage_pct;
             self.gpu_power_mw = tel.power_mw;
             self.pkg_power_mw = tel.package_power_mw;
