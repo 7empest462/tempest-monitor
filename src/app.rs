@@ -337,47 +337,9 @@ impl App {
             last_gpu_refresh: Instant::now() - Duration::from_secs(10),
             last_service_refresh: Instant::now() - Duration::from_secs(30),
             load_avg: (0.0, 0.0, 0.0),
-            gpu_model: {
-                #[cfg(target_os = "macos")]
-                { "Apple M4".to_string() }
-                #[cfg(target_os = "linux")]
-                {
-                    crate::linux_helper::detect_gpu_from_sysfs()
-                        .map(|g| g.model_name)
-                        .unwrap_or_else(|| "Unknown GPU".to_string())
-                }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-                { "Unknown GPU".to_string() }
-            },
-            gpu_driver: {
-                #[cfg(target_os = "macos")]
-                { "Apple Metal".to_string() }
-                #[cfg(target_os = "linux")]
-                {
-                    crate::linux_helper::detect_gpu_from_sysfs()
-                        .map(|g| g.driver)
-                        .unwrap_or_else(|| "unknown".to_string())
-                }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-                { "unknown".to_string() }
-            },
-            gpu_vendor: {
-                #[cfg(target_os = "macos")]
-                { "Apple".to_string() }
-                #[cfg(target_os = "linux")]
-                {
-                    crate::linux_helper::detect_gpu_from_sysfs()
-                        .map(|g| match g.vendor {
-                            crate::linux_helper::GpuVendor::Amd => "AMD".to_string(),
-                            crate::linux_helper::GpuVendor::Intel => "Intel".to_string(),
-                            crate::linux_helper::GpuVendor::Nvidia => "NVIDIA".to_string(),
-                            crate::linux_helper::GpuVendor::Unknown => "Unknown".to_string(),
-                        })
-                        .unwrap_or_else(|| "Unknown".to_string())
-                }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-                { "Unknown".to_string() }
-            },
+            gpu_model: String::new(),
+            gpu_driver: String::new(),
+            gpu_vendor: String::new(),
             gpu_usage: -1.0,
             gpu_power_mw: None,
             cpu_power_mw: None,

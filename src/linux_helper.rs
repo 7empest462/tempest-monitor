@@ -14,6 +14,7 @@ pub struct LinuxInterfaceInfo {
     pub driver: Option<String>,
 }
 
+#[derive(Clone, Debug, Default)]
 pub struct NvidiaGpuInfo {
     pub name: String,
     pub temperature: u32,
