@@ -86,54 +86,100 @@ pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
 /// Retrieves Apple Silicon GPU usage and power from powermetrics or IOKit fallbacks.
 pub fn get_macos_gpu_info() -> MacOSGpuTelemetry {
     let mut tel = MacOSGpuTelemetry {
-        model: "Apple Silicon".to_string(), // Default for modern Macs
+        model: get_soc_model(),
         ..Default::default()
     };
 
     let is_root = unsafe { libc::getuid() } == 0;
     
-    // Attempt to run powermetrics. If not root, use 'sudo -n' to try cached credentials
-    // without ever prompting the user for a password (safe for library use).
-    let mut cmd = if is_root {
-        let mut c = std::process::Command::new("powermetrics");
-        c.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
-        c
-    } else {
-        let mut c = std::process::Command::new("sudo");
-        c.args(&["-n", "powermetrics", "-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
-        c
+    // Tiered strategy:
+    // 1. If root, run directly.
+    // 2. If not root, try non-interactive 'sudo -n'.
+    // 3. If 'sudo -n' fails, and we are in a TTY, try 'sudo' (allow prompt).
+    // 4. Otherwise, fail gracefully.
+    
+    let is_atty = unsafe { libc::isatty(libc::STDIN_FILENO) == 1 };
+
+    let run_powermetrics = |use_sudo: bool, non_interactive: bool| -> Option<String> {
+        let mut cmd = if use_sudo {
+            let mut c = std::process::Command::new("sudo");
+            if non_interactive { c.arg("-n"); }
+            c.arg("powermetrics");
+            c
+        } else {
+            std::process::Command::new("powermetrics")
+        };
+
+        cmd.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
+        
+        if let Ok(output) = cmd.output() {
+            if output.status.success() {
+                return Some(String::from_utf8_lossy(&output.stdout).to_string());
+            }
+        }
+        None
     };
 
-    if let Ok(output) = cmd.output() {
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines() {
-                let low = line.to_lowercase();
-                if low.contains("gpu active residency") {
-                    if let Some(val) = line.split(':').last() {
-                        tel.usage_pct = val.trim().trim_end_matches('%').parse().unwrap_or(0.0);
-                    }
-                }
-                if low.contains("gpu power") {
-                    if let Some(val) = line.split(':').last() {
-                        tel.power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
-                    }
-                }
-                if low.contains("package power") || low.contains("combined power") {
-                    if let Some(val) = line.split(':').last() {
-                        tel.package_power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
-                    }
+    let output = if is_root {
+        run_powermetrics(false, false)
+    } else {
+        // Try non-interactive sudo first (uses cached credentials)
+        run_powermetrics(true, true).or_else(|| {
+            // If failed and we are in a terminal, try interactive sudo
+            if is_atty {
+                run_powermetrics(true, false)
+            } else {
+                None
+            }
+        })
+    };
+
+    if let Some(stdout) = output {
+        for line in stdout.lines() {
+            let low = line.to_lowercase();
+            if low.contains("gpu active residency") {
+                if let Some(val) = line.split(':').last() {
+                    tel.usage_pct = val.trim().trim_end_matches('%').parse().unwrap_or(0.0);
                 }
             }
-        } else {
-            // sudo -n failed (no cached credentials), return -1.0 to indicate N/A
-            tel.usage_pct = -1.0;
+            if low.contains("gpu power") {
+                if let Some(val) = line.split(':').last() {
+                    tel.power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
+                }
+            }
+            if low.contains("package power") || low.contains("combined power") {
+                if let Some(val) = line.split(':').last() {
+                    tel.package_power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
+                }
+            }
         }
     } else {
+        // If we still have no data, set usage to -1.0 to indicate N/A (run with sudo)
         tel.usage_pct = -1.0;
     }
 
     tel
+}
+
+/// Dynamic SoC detection for Apple Silicon (M1, M2, M3, M4 etc.)
+pub fn get_soc_model() -> String {
+    use std::ptr;
+    use libc::{sysctlbyname, c_char, c_void, size_t};
+
+    let mut size: size_t = 0;
+    let name = "machdep.cpu.brand_string\0";
+    unsafe {
+        // Get size first
+        if sysctlbyname(name.as_ptr() as *const c_char, ptr::null_mut(), &mut size, ptr::null_mut(), 0) != 0 {
+            return "Apple Silicon".to_string();
+        }
+        let mut buf = vec![0u8; size];
+        if sysctlbyname(name.as_ptr() as *const c_char, buf.as_mut_ptr() as *mut c_void, &mut size, ptr::null_mut(), 0) != 0 {
+            return "Apple Silicon".to_string();
+        }
+        let s = String::from_utf8_lossy(&buf).trim_matches(char::from(0)).trim().to_string();
+        if s.is_empty() { "Apple Silicon".to_string() } else { s }
+    }
 }
 
 /// Decodes cryptic macOS SMC sensor keys into human-readable labels.
