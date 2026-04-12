@@ -37,8 +37,8 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 - **Battery Status**: Shows percentage, state (Charging/Discharging), and time remaining.
 - **Thermal Sensors**: Monitors temperatures across various system components.
-- **GPU Monitoring (v0.3.1)**: Dedicated tab for GPU utilization, clock speeds, and power draw.
-    - **macOS**: Package Power (Watts) and GPU residence via `powermetrics`.
+- **GPU Monitoring (v0.3.4)**: Dedicated tab for GPU utilization, clock speeds, and power draw.
+    - **macOS**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required) for privilege-free usage monitoring. Optimized for **Apple M4**.
     - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
     - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
 
