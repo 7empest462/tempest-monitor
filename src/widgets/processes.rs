@@ -61,7 +61,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         f.render_widget(&app.filter_text_area, chunks[filter_idx]);
     }
 
-    let header_cells = ["PID", "Name", "CPU%", "MEM%", "TOTAL", "VIR", "Disk R/W", "User"]
+    let header_cells = ["PID", "Name", "CPU%", "MEM%", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
         .iter()
         .map(|h| Cell::from(*h).style(theme::style_table_header()));
     
@@ -109,13 +109,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         rows,
         [
             Constraint::Length(8),
-            Constraint::Percentage(30),
+            Constraint::Percentage(25),
             Constraint::Length(8),
             Constraint::Length(8),
             Constraint::Length(10),
             Constraint::Length(10),
             Constraint::Length(15),
-            Constraint::Min(10),
+            Constraint::Min(8),
+            Constraint::Length(10),
+            Constraint::Length(8),
         ],
     )
     .header(header)
@@ -127,7 +129,8 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(theme::style_border()),
     );
 
-    f.render_widget(table, chunks[content_idx]);
+    app.process_table_state.select(Some(app.selected));
+    f.render_stateful_widget(table, chunks[content_idx], &mut app.process_table_state);
     if app.show_detail_panel && total_rows > 0 {
         if let Some(p) = displayed_processes.get(app.selected) {
             render_detail_panel(f, p, chunks[detail_idx], app);
@@ -224,6 +227,15 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
     let total_footprint = p.memory() + compressed;
     let mem_pct = total_footprint as f64 / app.sys.total_memory() as f64 * 100.0;
     let disk_usage = p.disk_usage();
+    let acc_time = p.accumulated_cpu_time();
+    let h = acc_time / 3600;
+    let m = (acc_time % 3600) / 60;
+    let s = acc_time % 60;
+    let cpu_time_str = if h > 0 {
+        format!("{}:{:02}:{:02}", h, m, s)
+    } else {
+        format!("{}:{:02}", m, s)
+    };
     
     Row::new(vec![
         Cell::from(p.pid().to_string()),
@@ -234,6 +246,8 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
         Cell::from(format_size(p.virtual_memory())),
         Cell::from(format!("{} / {}", format_short_size(disk_usage.read_bytes), format_short_size(disk_usage.written_bytes))),
         Cell::from(p.user_id().map(|id| id.to_string()).unwrap_or_else(|| "n/a".into())),
+        Cell::from(cpu_time_str),
+        Cell::from(format!("{:?}", p.status())),
     ]).style(style)
 }
 

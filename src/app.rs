@@ -214,10 +214,10 @@ pub struct App {
     pub net_tx_history: VecDeque<u64>,        // bytes/s transmitted (total)
     pub gpu_history: VecDeque<u64>,           // GPU % (0-100)
 
-    // Processes
     pub sort_mode: SortMode,
     pub sort_direction: SortDirection,
     pub process_view: ProcessViewMode,
+    pub process_table_state: ratatui::widgets::TableState,
     pub filter_text_area: TextArea<'static>,
     pub filter_active: bool,
     pub filter_regex: bool,
@@ -321,6 +321,7 @@ impl App {
             sort_mode: SortMode::Cpu,
             sort_direction: SortDirection::Desc,
             process_view: ProcessViewMode::List,
+            process_table_state: ratatui::widgets::TableState::default(),
             filter_text_area: TextArea::default(),
             filter_active: false,
             filter_regex: false,
