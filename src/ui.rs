@@ -40,7 +40,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" 7EMPEST FLEET MONITOR v{} ", env!("CARGO_PKG_VERSION")))
+                .title(format!(" 7EMPEST MONITOR v{} ", env!("CARGO_PKG_VERSION")))
                 .title_style(theme::style_title())
                 .border_style(theme::style_border()),
         )
