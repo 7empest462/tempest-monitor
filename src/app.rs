@@ -177,9 +177,10 @@ pub struct App {
     pub gpu_usage: f64,
     #[allow(dead_code)]
     pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics (macOS)
-    #[allow(dead_code)]
     pub cpu_power_mw: Option<f64>,
     pub pkg_power_mw: Option<f64>,
+    pub ane_power_mw: Option<f64>,
+    pub gpu_freq_mhz: Option<f64>,
 
     // Linux GPU stats (from sysfs / hwmon)
     #[cfg(target_os = "linux")]
@@ -345,6 +346,8 @@ impl App {
             gpu_power_mw: None,
             cpu_power_mw: None,
             pkg_power_mw: None,
+            ane_power_mw: None,
+            gpu_freq_mhz: None,
 
             #[cfg(target_os = "linux")]
             nvidia_gpus: Vec::new(),
@@ -595,7 +598,10 @@ impl App {
             let tel = crate::macos_helper::get_macos_gpu_info(true);
             self.gpu_usage = tel.usage_pct;
             self.gpu_power_mw = tel.power_mw;
+            self.cpu_power_mw = tel.cpu_power_mw;
             self.pkg_power_mw = tel.package_power_mw;
+            self.ane_power_mw = tel.ane_power_mw;
+            self.gpu_freq_mhz = tel.gpu_freq_mhz;
             self.gpu_model = tel.model;
             
             Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);

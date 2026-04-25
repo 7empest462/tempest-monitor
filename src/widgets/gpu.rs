@@ -33,11 +33,15 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
         "N/A (run with sudo)".to_string()
     };
 
+    let freq_str = app.gpu_freq_mhz
+        .map(|f| format!(" │ Freq: {:.0} MHz", f))
+        .unwrap_or_default();
+
     let pkg_str = app.pkg_power_mw
         .map(|mw| format!(" │ Pkg Power: {:.2} W", mw / 1000.0))
         .unwrap_or_default();
 
-    let text = format!(" Model: {} │ GPU: {}{} ", app.gpu_model, usage_str, pkg_str);
+    let text = format!(" Model: {} │ GPU: {}{}{} ", app.gpu_model, usage_str, freq_str, pkg_str);
     let p = Paragraph::new(text)
         .style(Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD))
         .block(
@@ -94,8 +98,14 @@ fn render_power_and_details(f: &mut Frame, app: &App, area: Rect) {
 
     #[cfg(target_os = "macos")]
     {
+        let details_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(10), Constraint::Min(0)])
+            .split(cols[1]);
+
         render_macos_power_panel(f, app, cols[0]);
-        render_hw_details(f, app, cols[1]);
+        render_macos_unified_memory(f, app, details_chunks[0]);
+        render_hw_details(f, app, details_chunks[1]);
     }
 
     #[cfg(target_os = "linux")]
@@ -148,10 +158,10 @@ fn render_macos_power_panel(f: &mut Frame, app: &App, area: Rect) {
         vec![
             Line::from(""),
             power_gauge("CPU Power",     app.cpu_power_mw, 50.0),
+            power_gauge("GPU Power",     app.gpu_power_mw, 30.0),
+            power_gauge("ANE Power",     app.ane_power_mw, 10.0),
             Line::from(""),
-            power_gauge("GPU Power",     app.gpu_power_mw, 50.0),
-            Line::from(""),
-            power_gauge("Package Total", app.pkg_power_mw, 100.0),
+            power_gauge("Package Power", app.pkg_power_mw, 60.0),
             Line::from(""),
             Line::from(Span::styled(
                 " (from powermetrics — live)",
@@ -297,6 +307,27 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
 }
 
 // ── Hardware details (shared, but content varies by platform) ────────────────
+
+#[cfg(target_os = "macos")]
+fn render_macos_unified_memory(f: &mut Frame, app: &App, area: Rect) {
+    let total = app.sys.total_memory() as f64;
+    let used = app.sys.used_memory() as f64;
+    let ratio = (used / total).clamp(0.0, 1.0);
+
+    let gauge = Gauge::default()
+        .block(
+            Block::default()
+                .title(" Unified Memory (System Shared) ")
+                .title_style(theme::style_title())
+                .borders(Borders::ALL)
+                .border_style(theme::style_border()),
+        )
+        .ratio(ratio)
+        .label(format!("{:.1} / {:.1} GiB", used / 1024.0 / 1024.0 / 1024.0, total / 1024.0 / 1024.0 / 1024.0))
+        .gauge_style(theme::style_gauge(ratio * 100.0));
+
+    f.render_widget(gauge, area);
+}
 
 fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
     #[cfg(target_os = "macos")]

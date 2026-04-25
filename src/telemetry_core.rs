@@ -13,6 +13,9 @@ pub struct TelemetrySnapshot {
     pub cpu_temp_c: Option<f32>,
     pub gpu_temp_c: Option<f32>,
     pub power_usage_mw: Option<f64>,
+    pub cpu_power_usage_mw: Option<f64>,
+    pub ane_power_usage_mw: Option<f64>,
+    pub gpu_freq_mhz: Option<f64>,
 }
 
 #[cfg(target_os = "macos")]
@@ -30,6 +33,9 @@ pub fn get_macos_telemetry() -> TelemetrySnapshot {
         cpu_temp_c: None,
         gpu_temp_c: None,
         power_usage_mw: gpu.power_mw,
+        cpu_power_usage_mw: gpu.cpu_power_mw,
+        ane_power_usage_mw: gpu.ane_power_mw,
+        gpu_freq_mhz: gpu.gpu_freq_mhz,
     }
 }
 
@@ -48,5 +54,8 @@ pub fn get_linux_telemetry() -> TelemetrySnapshot {
         cpu_temp_c: None,
         gpu_temp_c: gpu.temp_c.map(|t| t as f32),
         power_usage_mw: None, // power capped on linux sysfs often
+        cpu_power_usage_mw: None,
+        ane_power_usage_mw: None,
+        gpu_freq_mhz: None,
     }
 }

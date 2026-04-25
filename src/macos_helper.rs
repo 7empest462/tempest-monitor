@@ -50,7 +50,10 @@ pub struct ProcessMemoryInfo {
 pub struct MacOSGpuTelemetry {
     pub usage_pct: f64,
     pub power_mw: Option<f64>,
+    pub cpu_power_mw: Option<f64>,
     pub package_power_mw: Option<f64>,
+    pub ane_power_mw: Option<f64>,
+    pub gpu_freq_mhz: Option<f64>,
     pub model: String,
 }
 
@@ -128,7 +131,7 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
             std::process::Command::new("powermetrics")
         };
 
-        cmd.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power"]);
+        cmd.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power,thermal"]);
         
         if let Ok(output) = cmd.output() {
             if output.status.success() {
@@ -155,29 +158,41 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     if let Some(stdout) = output {
         for line in stdout.lines() {
             let low = line.to_lowercase();
-            // Handle both "GPU active residency" (old) and "GPU HW active residency" (M4)
+            
+            // 1. GPU Residency (Usage %)
             if low.contains("gpu") && low.contains("active residency") {
                 if let Some(val) = line.split(':').nth(1) {
-                    // Extract usage before any parentheses (handles M4 frequency residency)
                     let clean_val = val.split('(').next().unwrap_or(val).trim();
                     let residency: f64 = clean_val.trim_end_matches('%').parse().unwrap_or(0.0);
-                    
-                    // Only override ioreg if residency is significantly different or ioreg failed
-                    // This ensures we trust powermetrics if it has high-fidelity data, but don't break if it returns 0.0
                     if residency > 0.0 || tel.usage_pct == 0.0 {
                         tel.usage_pct = residency;
                     }
                 }
             }
-            if low.contains("gpu power") {
+
+            // 2. GPU Frequency
+            if low.contains("gpu hw active frequency") {
                 if let Some(val) = line.split(':').last() {
-                    tel.power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
+                    tel.gpu_freq_mhz = val.to_lowercase().replace("mhz", "").trim().parse().ok();
                 }
             }
-            if low.contains("package power") || low.contains("combined power") {
-                if let Some(val) = line.split(':').last() {
-                    tel.package_power_mw = val.trim().trim_end_matches("mw").trim().parse().ok();
-                }
+
+            // 3. Power Parsing (more robust case-insensitive check)
+            fn parse_mw(line: &str) -> Option<f64> {
+                line.split(':').last()?.to_lowercase()
+                    .replace("mw", "")
+                    .trim()
+                    .parse().ok()
+            }
+
+            if low.contains("gpu power") {
+                tel.power_mw = parse_mw(line);
+            } else if low.contains("cpu power") {
+                tel.cpu_power_mw = parse_mw(line);
+            } else if low.contains("ane power") {
+                tel.ane_power_mw = parse_mw(line);
+            } else if low.contains("package power") || low.contains("combined power") {
+                tel.package_power_mw = parse_mw(line);
             }
         }
     }

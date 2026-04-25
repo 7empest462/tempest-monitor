@@ -28,6 +28,15 @@ pub fn update_metrics(app: &App) {
     if app.gpu_usage >= 0.0 {
         metrics::gauge!("tempest_gpu_usage").set(app.gpu_usage);
     }
+    if let Some(mw) = app.gpu_power_mw {
+        metrics::gauge!("tempest_gpu_power_watts").set(mw / 1000.0);
+    }
+    if let Some(mw) = app.ane_power_mw {
+        metrics::gauge!("tempest_ane_power_watts").set(mw / 1000.0);
+    }
+    if let Some(mhz) = app.gpu_freq_mhz {
+        metrics::gauge!("tempest_gpu_frequency_mhz").set(mhz);
+    }
 
     let rx = app.net_rx_history.iter().copied().last().unwrap_or(0) as f64;
     let tx = app.net_tx_history.iter().copied().last().unwrap_or(0) as f64;
@@ -52,7 +61,11 @@ pub fn export_json(app: &App) -> String {
             },
             "gpu": {
                 "usage_percent": app.gpu_usage,
-                "model": app.gpu_model
+                "model": app.gpu_model,
+                "power_mw": app.gpu_power_mw,
+                "cpu_power_mw": app.cpu_power_mw,
+                "ane_power_mw": app.ane_power_mw,
+                "freq_mhz": app.gpu_freq_mhz
             },
             "network": {
                 "rx_bytes_sec": app.net_rx_history.iter().copied().last().unwrap_or(0),
