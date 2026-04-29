@@ -95,10 +95,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    #[cfg(feature = "database")]
-    let res = run_app(&mut terminal, app, db).await;
-    #[cfg(not(feature = "database"))]
-    let res = run_app_no_db(&mut terminal, app).await;
+    let res = cfg_select! {
+        feature = "database" => {
+            run_app(&mut terminal, app, db).await
+        },
+        _ => {
+            run_app_no_db(&mut terminal, app).await
+        }
+    };
 
     // Restore terminal
     disable_raw_mode()?;

@@ -425,14 +425,16 @@ impl App {
             self.last_process_refresh = now;
 
             // Expensive macOS memory calculations are bundled with process refresh
-            #[cfg(target_os = "macos")]
-            {
-                self.compressed_mem_cache.clear();
-                for pid in self.sys.processes().keys() {
-                    if let Some(info) = crate::macos_helper::get_process_memory_info(pid.as_u32() as i32) {
-                        self.compressed_mem_cache.insert(*pid, info.compressed);
+            cfg_select! {
+                target_os = "macos" => {
+                    self.compressed_mem_cache.clear();
+                    for pid in self.sys.processes().keys() {
+                        if let Some(info) = crate::macos_helper::get_process_memory_info(pid.as_u32() as i32) {
+                            self.compressed_mem_cache.insert(*pid, info.compressed);
+                        }
                     }
-                }
+                },
+                _ => {}
             }
         }
 
@@ -593,33 +595,33 @@ impl App {
             return;
         }
 
-        #[cfg(target_os = "macos")]
-        {
-            let tel = crate::macos_helper::get_macos_gpu_info(true);
-            self.gpu_usage = tel.usage_pct;
-            self.gpu_power_mw = tel.power_mw;
-            self.cpu_power_mw = tel.cpu_power_mw;
-            self.pkg_power_mw = tel.package_power_mw;
-            self.ane_power_mw = tel.ane_power_mw;
-            self.gpu_freq_mhz = tel.gpu_freq_mhz;
-            self.gpu_model = tel.model;
-            
-            Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
-        }
+        cfg_select! {
+            target_os = "macos" => {
+                let tel = crate::macos_helper::get_macos_gpu_info(true);
+                self.gpu_usage = tel.usage_pct;
+                self.gpu_power_mw = tel.power_mw;
+                self.cpu_power_mw = tel.cpu_power_mw;
+                self.pkg_power_mw = tel.package_power_mw;
+                self.ane_power_mw = tel.ane_power_mw;
+                self.gpu_freq_mhz = tel.gpu_freq_mhz;
+                self.gpu_model = tel.model;
+                
+                Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
+            },
+            target_os = "linux" => {
+                let tel = crate::linux_helper::collect_gpu_telemetry();
+                self.gpu_usage = tel.usage_pct;
+                self.gpu_temp = tel.temp_c;
+                self.gpu_clock_mhz = tel.clock_mhz;
+                self.gpu_vram_used = tel.vram_used;
+                self.gpu_vram_total = tel.vram_total;
+                self.gpu_model = tel.model;
+                self.gpu_driver = tel.driver;
+                self.nvidia_gpus = tel.nvidia_info;
 
-        #[cfg(target_os = "linux")]
-        {
-            let tel = crate::linux_helper::collect_gpu_telemetry();
-            self.gpu_usage = tel.usage_pct;
-            self.gpu_temp = tel.temp_c;
-            self.gpu_clock_mhz = tel.clock_mhz;
-            self.gpu_vram_used = tel.vram_used;
-            self.gpu_vram_total = tel.vram_total;
-            self.gpu_model = tel.model;
-            self.gpu_driver = tel.driver;
-            self.nvidia_gpus = tel.nvidia_info;
-
-            Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
+                Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
+            },
+            _ => {}
         }
     }
 

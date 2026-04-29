@@ -96,31 +96,28 @@ fn render_power_and_details(f: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
-    #[cfg(target_os = "macos")]
-    {
-        let details_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(10), Constraint::Min(0)])
-            .split(cols[1]);
+    cfg_select! {
+        target_os = "macos" => {
+            let details_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(10), Constraint::Min(0)])
+                .split(cols[1]);
 
-        render_macos_power_panel(f, app, cols[0]);
-        render_macos_unified_memory(f, app, details_chunks[0]);
-        render_hw_details(f, app, details_chunks[1]);
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        if !app.nvidia_gpus.is_empty() {
-            render_nvidia_panel(f, app, area);
-        } else {
-            render_linux_gpu_stats(f, app, cols[0]);
-            render_hw_details(f, app, cols[1]);
+            render_macos_power_panel(f, app, cols[0]);
+            render_macos_unified_memory(f, app, details_chunks[0]);
+            render_hw_details(f, app, details_chunks[1]);
+        },
+        target_os = "linux" => {
+            if !app.nvidia_gpus.is_empty() {
+                render_nvidia_panel(f, app, area);
+            } else {
+                render_linux_gpu_stats(f, app, cols[0]);
+                render_hw_details(f, app, cols[1]);
+            }
+        },
+        _ => {
+            render_hw_details(f, app, area);
         }
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
-        render_hw_details(f, app, area);
     }
 }
 
