@@ -1,4 +1,3 @@
-#![feature(cfg_select)]
 //! # Tempest Monitor Library
 //! 
 //! This library provides the core hardware telemetry and monitoring logic used by

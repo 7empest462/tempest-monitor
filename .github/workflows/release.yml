@@ -16,8 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Nightly Rust
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Stable Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install System Dependencies
         run: |
@@ -38,8 +38,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Nightly Rust
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Stable Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --release
       - name: Upload Artifact

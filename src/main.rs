@@ -1,5 +1,3 @@
-#![feature(cfg_select)]
-
 use std::io;
 use std::time::Duration;
 use crossterm::{
