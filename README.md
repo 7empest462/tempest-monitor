@@ -1,4 +1,4 @@
-# Tempest Monitor ⚡️ [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# 7EMPEST MONITOR ⚡️ [![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20+%20Commons%20Clause-blue.svg)](LICENSE)
 
 A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built with Rust.
 
@@ -37,8 +37,8 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 - **Battery Status**: Shows percentage, state (Charging/Discharging), and time remaining.
 - **Thermal Sensors**: Monitors temperatures across various system components.
-- **GPU Monitoring (v0.3.4)**: Dedicated tab for GPU utilization, clock speeds, and power draw.
-    - **macOS**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required) for privilege-free usage monitoring. Optimized for **Apple M4**.
+- **GPU Monitoring**: Dedicated tab for GPU utilization, clock speeds, and power draw.
+    - **macOS (Apple Silicon)**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required). Optimized for **M4** with support for **ANE Power**, **GPU Frequency (MHz)**, and **Unified Memory** utilization.
     - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
     - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
 
@@ -119,6 +119,10 @@ This project uses **GitHub Actions** to automatically build binaries for both ma
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License + Commons Clause 1.0**. 
+- **Free for Personal/Internal Use**: You are free to use, modify, and distribute the software for free.
+- **No Commercial Resale**: You may **not** sell the software or provide it as a paid service whose value derives substantially from this software.
+
+See the [LICENSE](LICENSE) file for details.
 
 ---
