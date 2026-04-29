@@ -25,6 +25,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .constraints([
             Constraint::Length(5),       // CPU sparkline
             Constraint::Length(5),       // RAM / SWAP gauges
+            Constraint::Length(5),       // GPU summary
             Constraint::Length(5),       // Network sparkline
             Constraint::Length(5),       // Disk summary
             Constraint::Min(0),         // Sensors + Battery
@@ -33,9 +34,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
     render_cpu_mini(f, app, main[0]);
     render_mem_gauges(f, app, main[1]);
-    render_net_mini(f, app, main[2]);
-    render_disk_mini(f, app, main[3]);
-    render_sensors_battery(f, app, main[4]);
+    render_gpu_mini(f, app, main[2]);
+    render_net_mini(f, app, main[3]);
+    render_disk_mini(f, app, main[4]);
+    render_sensors_battery(f, app, main[5]);
 }
 
 fn render_system_bar(f: &mut Frame, _app: &App, area: Rect) {
@@ -160,6 +162,53 @@ fn render_mem_gauges(f: &mut Frame, app: &App, area: Rect) {
         ))
         .gauge_style(theme::style_gauge(pct_sw));
     f.render_widget(swap_gauge, cols[1]);
+}
+
+fn render_gpu_mini(f: &mut Frame, app: &App, area: Rect) {
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(area);
+
+    let gpu_data: Vec<u64> = app.gpu_history.iter().copied().collect();
+    let current = gpu_data.last().copied().unwrap_or(0);
+    
+    let model = if !app.gpu_model.is_empty() {
+        format!(" GPU ({}) ", app.gpu_model)
+    } else {
+        " GPU ".into()
+    };
+
+    let sparkline = Sparkline::default()
+        .block(
+            Block::default()
+                .title(format!(" {model} {current}% "))
+                .title_style(theme::style_title())
+                .borders(Borders::ALL)
+                .border_style(theme::style_border()),
+        )
+        .data(&gpu_data)
+        .max(100)
+        .style(Style::default().fg(theme::usage_color(current as f64)));
+    f.render_widget(sparkline, cols[0]);
+
+    let mut info_text = format!("Usage: {current}%");
+    if let Some(pwr) = app.gpu_power_mw {
+        if pwr > 0.0 {
+            info_text.push_str(&format!(" │ Power: {:.1}W", pwr / 1000.0));
+        }
+    }
+    
+    let p = Paragraph::new(info_text)
+        .block(
+            Block::default()
+                .title(" Info ")
+                .title_style(theme::style_title())
+                .borders(Borders::ALL)
+                .border_style(theme::style_border()),
+        )
+        .wrap(Wrap { trim: false });
+    f.render_widget(p, cols[1]);
 }
 
 fn render_net_mini(f: &mut Frame, app: &App, area: Rect) {

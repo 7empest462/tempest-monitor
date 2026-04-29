@@ -61,7 +61,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         f.render_widget(&app.filter_text_area, chunks[filter_idx]);
     }
 
-    let header_cells = ["PID", "Name", "CPU%", "MEM%", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
+    let header_cells = ["PID", "Name", "CPU%", "MEM%", "PR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
         .iter()
         .map(|h| Cell::from(*h).style(theme::style_table_header()));
     
@@ -108,16 +108,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(8),
-            Constraint::Percentage(25),
-            Constraint::Length(8),
-            Constraint::Length(8),
-            Constraint::Length(10),
-            Constraint::Length(10),
-            Constraint::Length(15),
-            Constraint::Min(8),
-            Constraint::Length(10),
-            Constraint::Length(8),
+            Constraint::Length(8),  // PID
+            Constraint::Min(20),    // Name
+            Constraint::Length(7),  // CPU%
+            Constraint::Length(7),  // MEM%
+            Constraint::Length(5),  // PR
+            Constraint::Length(10), // TOTAL
+            Constraint::Length(10), // VIR
+            Constraint::Length(14), // Disk R/W
+            Constraint::Length(12), // User
+            Constraint::Length(10), // CPU Time
+            Constraint::Length(10), // State
         ],
     )
     .header(header)
@@ -242,6 +243,7 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
         Cell::from(name_prefix + &p.name().to_string_lossy()),
         Cell::from(format!("{:.1}%", p.cpu_usage())),
         Cell::from(format!("{:.1}%", mem_pct)),
+        Cell::from("-".to_string()),
         Cell::from(format_size(total_footprint)),
         Cell::from(format_size(p.virtual_memory())),
         Cell::from(format!("{} / {}", format_short_size(disk_usage.read_bytes), format_short_size(disk_usage.written_bytes))),
