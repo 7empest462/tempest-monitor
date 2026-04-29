@@ -61,7 +61,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         f.render_widget(&app.filter_text_area, chunks[filter_idx]);
     }
 
-    let header_cells = ["PID", "Name", "CPU%", "MEM%", "PR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
+    let header_cells = ["PID", "Name", "CPU%", "MEM%", "PR", "THR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
         .iter()
         .map(|h| Cell::from(*h).style(theme::style_table_header()));
     
@@ -109,16 +109,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         rows,
         [
             Constraint::Length(8),  // PID
-            Constraint::Min(20),    // Name
+            Constraint::Min(25),    // Name
             Constraint::Length(7),  // CPU%
             Constraint::Length(7),  // MEM%
-            Constraint::Length(5),  // PR
-            Constraint::Length(10), // TOTAL
-            Constraint::Length(10), // VIR
-            Constraint::Length(14), // Disk R/W
+            Constraint::Length(4),  // PR
+            Constraint::Length(4),  // THR
+            Constraint::Length(11), // TOTAL
+            Constraint::Length(11), // VIR
+            Constraint::Length(15), // Disk R/W
             Constraint::Length(12), // User
             Constraint::Length(10), // CPU Time
-            Constraint::Length(10), // State
+            Constraint::Length(8),  // State
         ],
     )
     .header(header)
@@ -238,12 +239,15 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
         format!("{}:{:02}", m, s)
     };
     
+    let extra = app.get_extra_info(p.pid());
+    
     Row::new(vec![
         Cell::from(p.pid().to_string()),
         Cell::from(name_prefix + &p.name().to_string_lossy()),
         Cell::from(format!("{:.1}%", p.cpu_usage())),
         Cell::from(format!("{:.1}%", mem_pct)),
-        Cell::from("-".to_string()),
+        Cell::from(extra.priority.to_string()),
+        Cell::from(extra.thread_count.to_string()),
         Cell::from(format_size(total_footprint)),
         Cell::from(format_size(p.virtual_memory())),
         Cell::from(format!("{} / {}", format_short_size(disk_usage.read_bytes), format_short_size(disk_usage.written_bytes))),

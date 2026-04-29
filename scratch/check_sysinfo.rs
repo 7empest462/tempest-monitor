@@ -1,9 +1,12 @@
-use sysinfo::{System, ProcessExt}; // Might need trait
+use sysinfo::{System, Process};
 
 fn main() {
     let mut s = System::new_all();
     s.refresh_processes();
-    for p in s.processes().values() {
-        // println!("{}", p.tasks().len());
+    if let Some(p) = s.processes().values().next() {
+        // We will try to call methods and see what compiles.
+        // I'll comment out ones that fail.
+        // println!("Threads: {}", p.thread_count());
+        // println!("Priority: {}", p.priority());
     }
 }

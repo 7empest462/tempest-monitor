@@ -158,6 +158,13 @@ pub struct NetworkInterfaceInfo {
 #[cfg(target_os = "linux")]
 pub use crate::linux_helper::NvidiaGpuInfo;
 
+#[derive(Clone, Default)]
+pub struct ProcessExtraInfo {
+    pub compressed_mem: u64,
+    pub thread_count: i32,
+    pub priority: i32,
+}
+
 // ── Main App state ───────────────────────────────────────────────────────────
 
 pub struct App {
@@ -243,8 +250,7 @@ pub struct App {
     pub focus_cpu_history: VecDeque<u64>,
     pub focus_mem_history: VecDeque<u64>,
 
-    #[cfg(target_os = "macos")]
-    pub compressed_mem_cache: HashMap<sysinfo::Pid, u64>,
+    pub process_extra_cache: HashMap<sysinfo::Pid, ProcessExtraInfo>,
 
     // Timing
     pub tick_rate: Duration,
@@ -373,8 +379,7 @@ impl App {
             focus_cpu_history: VecDeque::with_capacity(HISTORY_LEN),
             focus_mem_history: VecDeque::with_capacity(HISTORY_LEN),
 
-            #[cfg(target_os = "macos")]
-            compressed_mem_cache: HashMap::new(),
+            process_extra_cache: HashMap::new(),
         };
 
         // Perform initial GPU detection to populate model and initial stats
@@ -424,13 +429,29 @@ impl App {
             );
             self.last_process_refresh = now;
 
-            // Expensive macOS memory calculations are bundled with process refresh
+            // Expensive platform-specific metadata calculations
             cfg_select! {
                 target_os = "macos" => {
-                    self.compressed_mem_cache.clear();
+                    self.process_extra_cache.clear();
                     for pid in self.sys.processes().keys() {
-                        if let Some(info) = crate::macos_helper::get_process_memory_info(pid.as_u32() as i32) {
-                            self.compressed_mem_cache.insert(*pid, info.compressed);
+                        if let Some(meta) = crate::macos_helper::get_process_metadata(pid.as_u32() as i32) {
+                            self.process_extra_cache.insert(*pid, ProcessExtraInfo {
+                                compressed_mem: meta.compressed,
+                                thread_count: meta.thread_count,
+                                priority: meta.priority,
+                            });
+                        }
+                    }
+                },
+                target_os = "linux" => {
+                    self.process_extra_cache.clear();
+                    for pid in self.sys.processes().keys() {
+                        if let Some(meta) = crate::linux_helper::get_process_metadata(pid.as_u32() as i32) {
+                            self.process_extra_cache.insert(*pid, ProcessExtraInfo {
+                                compressed_mem: 0,
+                                thread_count: meta.thread_count,
+                                priority: meta.priority,
+                            });
                         }
                     }
                 },
@@ -575,17 +596,14 @@ impl App {
         format!("{}ms", self.tick_rate.as_millis())
     }
 
-    /// Get compressed memory for a process (macOS only, returns 0 elsewhere).
+    /// Get extra info for a process.
+    pub fn get_extra_info(&self, pid: sysinfo::Pid) -> ProcessExtraInfo {
+        self.process_extra_cache.get(&pid).cloned().unwrap_or_default()
+    }
+
+    /// Get compressed memory for a process.
     pub fn get_compressed_mem(&self, pid: sysinfo::Pid) -> u64 {
-        #[cfg(target_os = "macos")]
-        {
-            self.compressed_mem_cache.get(&pid).copied().unwrap_or(0)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = pid;
-            0
-        }
+        self.process_extra_cache.get(&pid).map(|e| e.compressed_mem).unwrap_or(0)
     }
 
     /// Refresh GPU usage and power data.

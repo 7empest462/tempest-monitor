@@ -37,13 +37,42 @@ unsafe extern "C" {
     fn task_for_pid(target_tport: u32, pid: i32, tn: *mut u32) -> i32;
     fn task_info(target_task: u32, flavor: i32, task_info_out: *mut i32, task_info_outCnt: *mut u32) -> i32;
     fn mach_port_deallocate(task: u32, name: u32) -> i32;
+    fn proc_pidinfo(pid: i32, flavor: i32, arg: u64, buffer: *mut std::ffi::c_void, buffersize: i32) -> i32;
 }
+
+#[repr(C)]
+#[derive(Default, Debug)]
+#[allow(dead_code)]
+pub struct proc_taskinfo {
+    pub pti_virtual_size: u64,
+    pub pti_resident_size: u64,
+    pub pti_total_user: u64,
+    pub pti_total_system: u64,
+    pub pti_threads_user: u64,
+    pub pti_threads_system: u64,
+    pub pti_policy: i32,
+    pub pti_faults: i32,
+    pub pti_pageins: i32,
+    pub pti_cow_faults: i32,
+    pub pti_messages_sent: i32,
+    pub pti_messages_received: i32,
+    pub pti_syscalls_mach: i32,
+    pub pti_syscalls_unix: i32,
+    pub pti_csw: i32,
+    pub pti_threadnum: i32,
+    pub pti_numrunning: i32,
+    pub pti_priority: i32,
+}
+
+const PROC_PIDTASKINFO: i32 = 4;
 
 const TASK_VM_INFO: i32 = 22;
 const TASK_VM_INFO_COUNT: u32 = (mem::size_of::<task_vm_info_compressed>() / 4) as u32;
 
-pub struct ProcessMemoryInfo {
+pub struct ProcessMetadata {
     pub compressed: u64,
+    pub thread_count: i32,
+    pub priority: i32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -57,32 +86,49 @@ pub struct MacOSGpuTelemetry {
     pub model: String,
 }
 
-/// Retrieves resident and compressed memory info for a given PID using Mach task_info.
-/// Requires elevated permissions (sudo) for processes not owned by the current user.
-pub fn get_process_memory_info(pid: i32) -> Option<ProcessMemoryInfo> {
+/// Retrieves resident, compressed memory info, thread count and priority for a given PID.
+pub fn get_process_metadata(pid: i32) -> Option<ProcessMetadata> {
     let mut task: u32 = 0;
     let self_port = unsafe { mach_task_self() };
     
-    let res = unsafe { task_for_pid(self_port, pid, &mut task) };
-    if res != 0 {
-        return None;
+    // Memory (Compressed)
+    let mut compressed: u64 = 0;
+    if unsafe { task_for_pid(self_port, pid, &mut task) } == 0 {
+        let mut info = task_vm_info_compressed::default();
+        let mut count = TASK_VM_INFO_COUNT;
+        if unsafe { task_info(task, TASK_VM_INFO, &mut info as *mut _ as *mut i32, &mut count) } == 0 {
+            compressed = info.compressed;
+        }
+        unsafe { mach_port_deallocate(self_port, task) };
     }
 
-    let mut info = task_vm_info_compressed::default();
-    let mut count = TASK_VM_INFO_COUNT;
+    // Threads and Priority
+    let mut task_info = proc_taskinfo::default();
     let res = unsafe {
-        task_info(task, TASK_VM_INFO, &mut info as *mut _ as *mut i32, &mut count)
+        proc_pidinfo(
+            pid,
+            PROC_PIDTASKINFO,
+            0,
+            &mut task_info as *mut _ as *mut std::ffi::c_void,
+            mem::size_of::<proc_taskinfo>() as i32,
+        )
     };
 
-    // Clean up the port
-    unsafe { mach_port_deallocate(self_port, task) };
-
-    if res != 0 {
+    if res <= 0 {
+        if compressed > 0 {
+            return Some(ProcessMetadata {
+                compressed,
+                thread_count: 0,
+                priority: 0,
+            });
+        }
         return None;
     }
 
-    Some(ProcessMemoryInfo {
-        compressed: info.compressed,
+    Some(ProcessMetadata {
+        compressed,
+        thread_count: task_info.pti_threadnum,
+        priority: task_info.pti_priority,
     })
 }
 

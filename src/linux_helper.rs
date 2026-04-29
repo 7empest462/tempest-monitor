@@ -14,6 +14,24 @@ pub struct LinuxInterfaceInfo {
     pub driver: Option<String>,
 }
 
+pub struct ProcessMetadata {
+    pub thread_count: i32,
+    pub priority: i32,
+}
+
+pub fn get_process_metadata(pid: i32) -> Option<ProcessMetadata> {
+    let stat_path = format!("/proc/{}/stat", pid);
+    if let Ok(content) = std::fs::read_to_string(stat_path) {
+        let parts: Vec<&str> = content.split_whitespace().collect();
+        if parts.len() > 19 {
+            let priority = parts[17].parse().unwrap_or(0);
+            let thread_count = parts[19].parse().unwrap_or(0);
+            return Some(ProcessMetadata { thread_count, priority });
+        }
+    }
+    None
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NvidiaGpuInfo {
     pub name: String,
