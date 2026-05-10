@@ -86,6 +86,84 @@ pub struct MacOSGpuTelemetry {
     pub model: String,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct MacOSInterfaceInfo {
+    pub speed: Option<u32>,
+    pub duplex: Option<String>,
+    pub driver: Option<String>,
+    pub mtu: u32,
+}
+
+pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
+    let output = std::process::Command::new("ifconfig")
+        .arg(name)
+        .output()
+        .ok()?;
+    
+    let s = String::from_utf8_lossy(&output.stdout);
+    let mut info = MacOSInterfaceInfo {
+        speed: None,
+        duplex: None,
+        driver: None,
+        mtu: 1500,
+    };
+
+    for line in s.lines() {
+        let low = line.to_lowercase();
+        // MTU
+        if low.contains("mtu") {
+            if let Some(mtu_part) = line.split("mtu ").nth(1) {
+                info.mtu = mtu_part.trim().split_whitespace().next().and_then(|m| m.parse().ok()).unwrap_or(1500);
+            }
+        }
+        // Media (Speed and Duplex)
+        if low.contains("media:") {
+            if low.contains("1000baset") { info.speed = Some(1000); }
+            else if low.contains("2500baset") { info.speed = Some(2500); }
+            else if low.contains("5000baset") { info.speed = Some(5000); }
+            else if low.contains("10gbaset") { info.speed = Some(10000); }
+            else if low.contains("100baset") { info.speed = Some(100); }
+            else if low.contains("10baset") { info.speed = Some(10); }
+            
+            if low.contains("full-duplex") { info.duplex = Some("Full".into()); }
+            else if low.contains("half-duplex") { info.duplex = Some("Half".into()); }
+        }
+    }
+
+    // For Wi-Fi (en0 usually on modern Macs), ifconfig doesn't show speed.
+    // We could use airport utility but it's deprecated/hidden.
+    // For now, let's try to identify the driver/type from ioreg if possible.
+    if name.starts_with("en") {
+        info.driver = Some("Apple Ethernet/Wi-Fi".into());
+        
+        // If speed is still None, it might be Wi-Fi. Try airport utility.
+        if info.speed.is_none() {
+            let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
+            if let Ok(airport_out) = std::process::Command::new(airport_path)
+                .arg("-I")
+                .output() {
+                let airport_s = String::from_utf8_lossy(&airport_out.stdout);
+                for a_line in airport_s.lines() {
+                    if a_line.contains("lastTxRate:") {
+                        if let Some(rate_str) = a_line.split(':').last() {
+                            info.speed = rate_str.trim().parse().ok();
+                            info.duplex = Some("Full".into()); // Wi-Fi is technically half but full is better for UI consistency if active
+                        }
+                    }
+                }
+            }
+        }
+    } else if name.starts_with("lo") {
+        info.driver = Some("Loopback".into());
+        info.speed = Some(0);
+        info.duplex = Some("N/A".into());
+    } else if name.starts_with("gif") || name.starts_with("stf") {
+        info.driver = Some("Tunnel".into());
+    }
+
+    Some(info)
+}
+
 /// Retrieves resident, compressed memory info, thread count and priority for a given PID.
 pub fn get_process_metadata(pid: i32) -> Option<ProcessMetadata> {
     let mut task: u32 = 0;

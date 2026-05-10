@@ -503,7 +503,28 @@ impl App {
                 });
             }
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        {
+            for interface in pnet::datalink::interfaces() {
+                let mut info = NetworkInterfaceInfo {
+                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
+                    mtu: 0,
+                    speed: None,
+                    duplex: None,
+                    driver: None,
+                };
+
+                if let Some(mac_info) = crate::macos_helper::get_macos_interface_info(&interface.name) {
+                    info.mtu = mac_info.mtu;
+                    info.speed = mac_info.speed;
+                    info.duplex = mac_info.duplex;
+                    info.driver = mac_info.driver;
+                }
+
+                self.network_info.insert(interface.name.clone(), info);
+            }
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         {
             for interface in pnet::datalink::interfaces() {
                 self.network_info.insert(interface.name.clone(), NetworkInterfaceInfo {
