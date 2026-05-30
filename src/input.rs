@@ -176,12 +176,12 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         KeyCode::Char('/') if app.active_tab == ActiveTab::Processes => {
             app.filter_active = true;
             // Clear on first '/' hit
-            app.filter_text_area = tui_textarea::TextArea::default();
+            app.filter_text_area = ratatui_textarea::TextArea::default();
         }
 
         // Ctrl+U to clear filter (even if not active)
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.filter_text_area = tui_textarea::TextArea::default();
+            app.filter_text_area = ratatui_textarea::TextArea::default();
         }
 
         // Navigation — routes to the right selection field per active tab

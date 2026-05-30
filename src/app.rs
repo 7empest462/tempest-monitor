@@ -8,7 +8,7 @@ use sysinfo::{
 
 // use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
 // use pnet::datalink;
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 use crate::cli::CliArgs;
 use crate::config::TempestConfig;
