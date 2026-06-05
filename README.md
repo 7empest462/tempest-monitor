@@ -71,7 +71,7 @@ your_username ALL=(ALL) NOPASSWD: /path/to/tempest-monitor
 
 ## Usage Guide & Tabs
 
-Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab` to cycle.
+Tempest Monitor is designed for both speed and depth. Press `1`-`0` or use `Tab`/`Shift+Tab` to cycle.
 
 - `1`: **Overview** - High-level dashboard of everything at once.
 - `2`: **CPU** - Detailed per-core usage, frequency, and thermal mapping.
@@ -82,12 +82,13 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab`
 - `7`: **GPU** - Real-time utilization and power consumption charts.
 - `8`: **Services** - Interactive system service manager: macOS `launchctl` and Linux `systemd`. Press `Enter` to open the Service Inspector to read plist/unit files, toggle live log streaming, auto-detect and edit its config file using `$EDITOR` with automatic TUI suspend/resume, or start/stop/restart.
 - `9`: **Sockets** - Real-time network socket enumeration (replacing `netstat`).
+- `0`: **History** - Rolling time-series charts displaying SQLite-backed long-term metric history.
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| `1`-`9` | Switch between tabs |
+| `1`-`0` | Switch between tabs |
 | `Tab` / `Shift+Tab` | Cycle through tabs |
 | `Enter` | **Focus Mode** (Processes) / Start/Restart (Services) / Open Inspector (Services list) |
 | `s` / `r` | Stop / Restart service (Services list / Inspector view) |
@@ -133,6 +134,44 @@ git clone https://github.com/7empest462/tempest-monitor.git
 cd tempest-monitor
 cargo build --release
 cp target/release/tempest-monitor ~/.local/bin/  # Move to PATH
+```
+
+## 📦 Using as a Library Dependency
+
+In addition to being a TUI application, `tempest-monitor` is also a reusable library (`tempest_monitor`) designed to let developers easily collect high-fidelity, cross-platform hardware telemetry in their own Rust projects.
+
+To use it, add this to your `Cargo.toml`:
+```toml
+[dependencies]
+tempest-monitor = "0.4.4"
+```
+
+### Telemetry Capabilities:
+* **macOS (Apple Silicon)**: Programmatically query M1/M2/M3/M4 metrics including:
+  * CPU / GPU / ANE (Apple Neural Engine) power draw in milliwatts.
+  * GPU Core frequency (MHz).
+  * Unified Memory utilization.
+  * Compressed memory statistics per process.
+* **Linux**:
+  * AMD/Intel GPU clock, VRAM, and temperature via `sysfs`.
+  * NVIDIA GPU stats via NVML bindings.
+  * CPU governor controls and frequency telemetry.
+* **Cross-platform**: Sockets, disk statistics, network interface speed, and system service statuses.
+
+### Library API Example:
+```rust
+use tempest_monitor::{collect_macos_gpu, TelemetrySnapshot};
+
+fn main() {
+    #[cfg(target_os = "macos")]
+    {
+        // Fetch macOS high-fidelity GPU & Apple Silicon power statistics
+        let gpu_stats = collect_macos_gpu(true); // true = use powermetrics (requires sudo)
+        if let Some(power) = gpu_stats.power_mw {
+            println!("GPU Power Draw: {:.2} Watts", power / 1000.0);
+        }
+    }
+}
 ```
 
 ## Automations
