@@ -31,7 +31,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 .border_style(theme::style_border()),
         )
         .data(&rx_data)
-        .style(Style::default().fg(theme::ACCENT));
+        .style(Style::default().fg(theme::accent()));
     f.render_widget(rx_sparkline, chunks[0]);
 
     // TX sparkline
@@ -46,7 +46,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 .border_style(theme::style_border()),
         )
         .data(&tx_data)
-        .style(Style::default().fg(theme::ACCENT2));
+        .style(Style::default().fg(theme::accent2()));
     f.render_widget(tx_sparkline, chunks[1]);
 
     // Interface list (Table)
@@ -62,7 +62,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Cell::from("Total RX").style(theme::style_table_header()),
         Cell::from("Total TX").style(theme::style_table_header()),
     ])
-    .style(Style::default().bg(theme::HEADER_BG))
+    .style(Style::default().bg(theme::header_bg()))
     .height(1);
 
     let rows: Vec<Row> = app.networks.iter().map(|(name, data)| {

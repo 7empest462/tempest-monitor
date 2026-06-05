@@ -111,10 +111,10 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
     for line in s.lines() {
         let low = line.to_lowercase();
         // MTU
-        if low.contains("mtu") {
-            if let Some(mtu_part) = line.split("mtu ").nth(1) {
-                info.mtu = mtu_part.trim().split_whitespace().next().and_then(|m| m.parse().ok()).unwrap_or(1500);
-            }
+        if low.contains("mtu")
+            && let Some(mtu_part) = line.split("mtu ").nth(1)
+        {
+            info.mtu = mtu_part.split_whitespace().next().and_then(|m| m.parse().ok()).unwrap_or(1500);
         }
         // Media (Speed and Duplex)
         if low.contains("media:") {
@@ -144,11 +144,9 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
                 .output() {
                 let airport_s = String::from_utf8_lossy(&airport_out.stdout);
                 for a_line in airport_s.lines() {
-                    if a_line.contains("lastTxRate:") {
-                        if let Some(rate_str) = a_line.split(':').last() {
-                            info.speed = rate_str.trim().parse().ok();
-                            info.duplex = Some("Full".into()); // Wi-Fi is technically half but full is better for UI consistency if active
-                        }
+                    if let Some(rate_str) = a_line.trim().strip_prefix("lastTxRate:") {
+                        info.speed = rate_str.trim().parse().ok();
+                        info.duplex = Some("Full".into()); // Wi-Fi is technically half but full is better for UI consistency if active
                     }
                 }
             }
@@ -221,12 +219,12 @@ pub fn get_ioreg_gpu_usage() -> f64 {
         // Matches: "Device Utilization %" = 67 OR "Device Utilization %"=67 OR Device Utilization %=67
         // Hardened to be case-insensitive and handle optional surrounding quotes
         let re_str = r#"(?i)"?Device Utilization %"?\s*[=:]\s*(\d+)"#;
-        if let Ok(re) = regex::Regex::new(re_str) {
-            if let Some(caps) = re.captures(&s) {
-                if let Some(m) = caps.get(1) {
-                    return m.as_str().parse::<f64>().unwrap_or(0.0);
-                }
-            }
+        if let Some(m) = regex::Regex::new(re_str)
+            .ok()
+            .and_then(|re| re.captures(&s))
+            .and_then(|caps| caps.get(1))
+        {
+            return m.as_str().parse::<f64>().unwrap_or(0.0);
         }
     }
     0.0
@@ -255,12 +253,10 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
             std::process::Command::new("powermetrics")
         };
 
-        cmd.args(&["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power,thermal"]);
+        cmd.args(["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power,thermal"]);
         
-        if let Ok(output) = cmd.output() {
-            if output.status.success() {
-                return Some(String::from_utf8_lossy(&output.stdout).to_string());
-            }
+        if let Some(output) = cmd.output().ok().filter(|o| o.status.success()) {
+            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
         }
         None
     };
@@ -284,26 +280,26 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
             let low = line.to_lowercase();
             
             // 1. GPU Residency (Usage %)
-            if low.contains("gpu") && low.contains("active residency") {
-                if let Some(val) = line.split(':').nth(1) {
-                    let clean_val = val.split('(').next().unwrap_or(val).trim();
-                    let residency: f64 = clean_val.trim_end_matches('%').parse().unwrap_or(0.0);
-                    if residency > 0.0 || tel.usage_pct == 0.0 {
-                        tel.usage_pct = residency;
-                    }
+            if low.contains("gpu") && low.contains("active residency")
+                && let Some(val) = line.split(':').nth(1)
+            {
+                let clean_val = val.split('(').next().unwrap_or(val).trim();
+                let residency: f64 = clean_val.trim_end_matches('%').parse().unwrap_or(0.0);
+                if residency > 0.0 || tel.usage_pct == 0.0 {
+                    tel.usage_pct = residency;
                 }
             }
 
             // 2. GPU Frequency
-            if low.contains("gpu hw active frequency") {
-                if let Some(val) = line.split(':').last() {
-                    tel.gpu_freq_mhz = val.to_lowercase().replace("mhz", "").trim().parse().ok();
-                }
+            if low.contains("gpu hw active frequency")
+                && let Some(val) = line.split(':').next_back()
+            {
+                tel.gpu_freq_mhz = val.to_lowercase().replace("mhz", "").trim().parse().ok();
             }
 
             // 3. Power Parsing (more robust case-insensitive check)
             fn parse_mw(line: &str) -> Option<f64> {
-                line.split(':').last()?.to_lowercase()
+                line.split(':').next_back()?.to_lowercase()
                     .replace("mw", "")
                     .trim()
                     .parse().ok()

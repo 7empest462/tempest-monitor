@@ -24,6 +24,8 @@ pub mod theme;
 pub mod export;
 pub mod cli;
 pub mod widgets;
+pub mod service_inspector;
+pub mod power_mode;
 
 pub use app::App;
 pub use config::TempestConfig;

@@ -12,7 +12,7 @@ use crate::app::App;
 use crate::theme;
 
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
-    let pid = match app.focus_pid {
+    let pid = match app.processes.focus_pid {
         Some(p) => p,
         None => return,
     };
@@ -46,7 +46,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             proc.name().to_string_lossy().to_string(),
             Style::default()
-                .fg(theme::ACCENT)
+                .fg(theme::accent())
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!("  PID {}", pid), theme::style_muted()),
@@ -85,7 +85,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(cpu_gauge, gauge_chunks[0]);
 
     let total_sys_mem = app.sys.total_memory();
-    let mem_pct = if total_sys_mem > 0 { total_mem * 100 / total_sys_mem } else { 0 };
+    let mem_pct = (total_mem * 100).checked_div(total_sys_mem).unwrap_or(0);
     let mem_ratio = (mem_pct as f64 / 100.0).clamp(0.0, 1.0);
     let mem_gauge = Gauge::default()
         .block(

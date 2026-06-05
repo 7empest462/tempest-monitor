@@ -13,7 +13,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .map(|h| Cell::from(*h).style(theme::style_table_header()));
     let header = Row::new(header_cells)
-        .style(Style::default().bg(theme::HEADER_BG))
+        .style(Style::default().bg(theme::header_bg()))
         .height(1);
 
     let rows: Vec<Row> = app.disks.iter().map(|disk| {

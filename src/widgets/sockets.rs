@@ -22,13 +22,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_summary(f: &mut Frame, app: &App, area: Rect) {
-    let established = app.sockets.iter().filter(|s| s.state == "ESTABLISHED").count();
-    let listening   = app.sockets.iter().filter(|s| s.state == "LISTEN").count();
-    let closing     = app.sockets.iter().filter(|s| s.state == "CLOSE_WAIT" || s.state == "TIME_WAIT").count();
+    let established = app.sockets.list.iter().filter(|s| s.state == "ESTABLISHED").count();
+    let listening   = app.sockets.list.iter().filter(|s| s.state == "LISTEN").count();
+    let closing     = app.sockets.list.iter().filter(|s| s.state == "CLOSE_WAIT" || s.state == "TIME_WAIT").count();
 
     let text = format!(
         " Total: {}  │  Established: {}  │  Listening: {}  │  Closing: {}  │  [↑↓/jk/PgUp/PgDn] Scroll ",
-        app.sockets.len(), established, listening, closing
+        app.sockets.list.len(), established, listening, closing
     );
 
     let p = Paragraph::new(text)
@@ -51,7 +51,7 @@ fn render_socket_table(f: &mut Frame, app: &mut App, area: Rect) {
         Cell::from("State").style(theme::style_table_header()),
         Cell::from("Process").style(theme::style_table_header()),
     ])
-    .style(Style::default().bg(theme::HEADER_BG))
+    .style(Style::default().bg(theme::header_bg()))
     .height(1);
 
     let state_color = |state: &str| -> Color {
@@ -64,7 +64,7 @@ fn render_socket_table(f: &mut Frame, app: &mut App, area: Rect) {
         }
     };
 
-    let rows: Vec<Row> = app.sockets.iter().map(|sock| {
+    let rows: Vec<Row> = app.sockets.list.iter().map(|sock| {
         let state_sty = Style::default().fg(state_color(&sock.state));
         let proc_str = if sock.process_name.is_empty() {
             sock.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into())
@@ -80,7 +80,7 @@ fn render_socket_table(f: &mut Frame, app: &mut App, area: Rect) {
         ])
     }).collect();
 
-    let total = app.sockets.len();
+    let total = app.sockets.list.len();
     let table = Table::new(
         rows,
         [
@@ -101,6 +101,6 @@ fn render_socket_table(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(theme::style_border()),
     );
 
-    let mut state = TableState::default().with_selected(Some(app.socket_selected));
+    let mut state = TableState::default().with_selected(Some(app.sockets.selected));
     f.render_stateful_widget(table, area, &mut state);
 }

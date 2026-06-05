@@ -54,14 +54,22 @@ fn render_system_bar(f: &mut Frame, _app: &App, area: Rect) {
     let is_root = unsafe { libc::getuid() } == 0;
     
     let mut spans = vec![
-        Span::raw(format!(
-            " {} │ {} │ Kernel {} │ Up {}h {:02}m │ Load {:.2} {:.2} {:.2}",
-            hostname, os_name, kernel, hours, mins, load.one, load.five, load.fifteen
-        ))
+        Span::styled(format!(" {} ", hostname), Style::default().fg(theme::accent()).add_modifier(ratatui::style::Modifier::BOLD)),
+        Span::styled("│ ", Style::default().fg(theme::fg_muted())),
+        Span::styled(format!("{} ", os_name), Style::default().fg(theme::title_fg())),
+        Span::styled("│ ", Style::default().fg(theme::fg_muted())),
+        Span::styled("Kernel: ", Style::default().fg(theme::fg_muted())),
+        Span::styled(format!("{} ", kernel), Style::default().fg(theme::title_fg())),
+        Span::styled("│ ", Style::default().fg(theme::fg_muted())),
+        Span::styled("Uptime: ", Style::default().fg(theme::fg_muted())),
+        Span::styled(format!("{}h {:02}m ", hours, mins), Style::default().fg(theme::accent2())),
+        Span::styled("│ ", Style::default().fg(theme::fg_muted())),
+        Span::styled("Load: ", Style::default().fg(theme::fg_muted())),
+        Span::styled(format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen), Style::default().fg(theme::usage_color(load.five * 10.0))),
     ];
 
     if is_root {
-        spans.push(Span::raw(" │ "));
+        spans.push(Span::styled(" │ ", Style::default().fg(theme::fg_muted())));
         spans.push(Span::styled("[ROOT]", theme::style_root_badge()));
     }
 
@@ -192,14 +200,17 @@ fn render_gpu_mini(f: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().fg(theme::usage_color(current as f64)));
     f.render_widget(sparkline, cols[0]);
 
-    let mut info_text = format!("Usage: {current}%");
-    if let Some(pwr) = app.gpu_power_mw {
-        if pwr > 0.0 {
-            info_text.push_str(&format!(" │ Power: {:.1}W", pwr / 1000.0));
-        }
+    let mut spans = vec![
+        Span::styled(" Usage: ", Style::default().fg(theme::fg_muted())),
+        Span::styled(format!("{current}%"), Style::default().fg(theme::usage_color(current as f64))),
+    ];
+    if let Some(pwr) = app.gpu_power_mw
+        && pwr > 0.0 {
+            spans.push(Span::styled(" │ Power: ", Style::default().fg(theme::fg_muted())));
+            spans.push(Span::styled(format!("{:.1}W", pwr / 1000.0), Style::default().fg(theme::accent2())));
     }
     
-    let p = Paragraph::new(info_text)
+    let p = Paragraph::new(Line::from(spans))
         .block(
             Block::default()
                 .title(" Info ")
@@ -228,7 +239,7 @@ fn render_net_mini(f: &mut Frame, app: &App, area: Rect) {
                 .border_style(theme::style_border()),
         )
         .data(&rx_data)
-        .style(Style::default().fg(theme::ACCENT));
+        .style(Style::default().fg(theme::accent()));
     f.render_widget(rx_sparkline, cols[0]);
 
     let tx_data: Vec<u64> = app.net_tx_history.iter().copied().collect();
@@ -242,30 +253,30 @@ fn render_net_mini(f: &mut Frame, app: &App, area: Rect) {
                 .border_style(theme::style_border()),
         )
         .data(&tx_data)
-        .style(Style::default().fg(theme::ACCENT2));
+        .style(Style::default().fg(theme::accent2()));
     f.render_widget(tx_sparkline, cols[1]);
 }
 
 fn render_disk_mini(f: &mut Frame, app: &App, area: Rect) {
-    let mut text = String::new();
+    let mut lines = Vec::new();
     for disk in app.disks.iter() {
         let total = disk.total_space();
         let avail = disk.available_space();
         let used = total.saturating_sub(avail);
         let pct = if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 };
-        text.push_str(&format!(
-            " {} ({}) {:.1}/{:.1} GiB ({:.0}%)\n",
-            disk.mount_point().to_string_lossy(),
-            disk.file_system().to_string_lossy(),
-            used as f64 / 1_073_741_824.0,
-            total as f64 / 1_073_741_824.0,
-            pct,
-        ));
+        lines.push(Line::from(vec![
+            Span::styled(format!(" {} ", disk.mount_point().to_string_lossy()), Style::default().fg(theme::accent())),
+            Span::styled(format!("({}) ", disk.file_system().to_string_lossy()), Style::default().fg(theme::fg_muted())),
+            Span::raw(format!("{:.1}/{:.1} GiB ", used as f64 / 1_073_741_824.0, total as f64 / 1_073_741_824.0)),
+            Span::styled(format!("({:.0}%)", pct), Style::default().fg(theme::usage_color(pct))),
+        ]));
     }
-    if text.is_empty() {
-        text = " No disks detected".into();
+    if lines.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled(" No disks detected", Style::default().fg(theme::fg_muted()))
+        ]));
     }
-    let p = Paragraph::new(text)
+    let p = Paragraph::new(lines)
         .block(
             Block::default()
                 .title(" Disks ")
@@ -284,19 +295,26 @@ fn render_sensors_battery(f: &mut Frame, app: &App, area: Rect) {
         .split(area);
 
     // Temperature sensors
-    let mut sensor_text = String::new();
+    let mut sensor_lines = Vec::new();
     for comp in app.components.iter() {
-        let temp = comp.temperature().unwrap_or(0.0);
+        let temp = comp.temperature().unwrap_or(0.0) as f64;
         if temp <= 0.0 {
             continue;
         }
         let label = comp.label();
-        sensor_text.push_str(&format!(" {label}: {temp:.1}°C\n"));
+        // Scale 35°C (cool / 0% gradient) to 80°C (hot / 100% gradient)
+        let pct = ((temp - 35.0) / (80.0 - 35.0) * 100.0).clamp(0.0, 100.0);
+        sensor_lines.push(Line::from(vec![
+            Span::styled(format!(" {}: ", label), Style::default().fg(theme::fg_muted())),
+            Span::styled(format!("{temp:.1}°C"), Style::default().fg(theme::usage_color(pct))),
+        ]));
     }
-    if sensor_text.is_empty() {
-        sensor_text = " No temperature sensors detected".into();
+    if sensor_lines.is_empty() {
+        sensor_lines.push(Line::from(vec![
+            Span::styled(" No temperature sensors detected", Style::default().fg(theme::fg_muted()))
+        ]));
     }
-    let p = Paragraph::new(sensor_text)
+    let p = Paragraph::new(sensor_lines)
         .block(
             Block::default()
                 .title(" Temperatures ")

@@ -46,14 +46,14 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         )
         .select(app.active_tab.index())
         .highlight_style(theme::style_tab_active())
-        .style(Style::default().fg(theme::FG_MUTED));
+        .style(Style::default().fg(theme::fg_muted()));
 
     f.render_widget(tabs, area);
 }
 
 fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
     // If focus mode is active, render the focus dashboard instead
-    if app.focus_pid.is_some() {
+    if app.processes.focus_pid.is_some() {
         widgets::focus::render(f, app, area);
         return;
     }
@@ -68,16 +68,18 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
         ActiveTab::Gpu       => widgets::gpu::render(f, app, area),
         ActiveTab::Services  => widgets::services::render(f, app, area),
         ActiveTab::Sockets   => widgets::sockets::render(f, app, area),
+        ActiveTab::History   => widgets::history::render(f, app, area),
     }
 }
 
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let help_text = if app.focus_pid.is_some() {
+    let help_text = if app.processes.focus_pid.is_some() {
         format!(" [Esc] Exit Focus │ [Space] {} │ [+/-] Rate: {}",
             if app.paused { "Resume" } else { "Pause" },
             app.tick_rate_label())
     } else {
-        format!(" [q] Quit │ [?] Help │ [Space] {} │ [+/-] Rate: {} │ Tabs 1-9",
+        let theme_key = if app.active_tab == ActiveTab::Processes { "T" } else { "t" };
+        format!(" [q] Quit │ [?] Help │ [{theme_key}] Theme │ [Space] {} │ [+/-] Rate: {} │ Tabs 1-0",
             if app.paused { "Resume" } else { "Pause" },
             app.tick_rate_label())
     };
@@ -98,7 +100,13 @@ fn draw_help(f: &mut Frame, area: Rect) {
   [Space]     Pause/Resume
   [+ / -]     Adjust Refresh Rate
   [?]         Toggle Help
+  [T/t]       Cycle Color Theme (Nord, Light, Catppuccin, Dark)
   
+  CPU (Tab 2)
+  [F7]        Low Power Mode
+  [F8]        Normal / Balanced Mode
+  [F9]        Performance Mode (Linux)
+
   PROCESSES (Tab 6)
   [c/m/v/p/n] Sort by CPU/Mem/Virt/Pid/Name
   [F1-F6]     Advanced Sort Controls
@@ -112,9 +120,17 @@ fn draw_help(f: &mut Frame, area: Rect) {
   
   SERVICES (Tab 8)
   [↑↓/j/k]   Navigate services
-  [Enter]     Start service
+  [Enter]     Open Service Inspector
   [s]         Stop service
   [r]         Restart service
+
+  SERVICE INSPECTOR
+  [e]         Edit service file
+  [c]         Edit config file
+  [l]         Toggle log view
+  [Enter/s/r] Start/Stop/Restart
+  [↑↓/j/k]   Scroll contents
+  [Esc]       Back to list
 
   SOCKETS (Tab 9)
   [↑↓/j/k]   Navigate connections

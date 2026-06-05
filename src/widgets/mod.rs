@@ -9,3 +9,4 @@ pub mod overview;
 pub mod processes;
 pub mod services;
 pub mod sockets;
+pub mod history;

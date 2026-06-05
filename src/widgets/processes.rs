@@ -12,11 +12,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let mut processes: Vec<_> = app.sys.processes().values().collect();
     
     // Sort and filter
-    if app.process_view == ProcessViewMode::List {
-        apply_sort(&mut processes, app.sort_mode, app.sort_direction, app);
-        let filter = app.filter_text_area.lines()[0].to_string();
+    if app.processes.view_mode == ProcessViewMode::List {
+        apply_sort(&mut processes, app.processes.sort_mode, app.processes.sort_direction, app);
+        let filter = app.processes.filter_text_area.lines()[0].to_string();
         if !filter.is_empty() {
-            if app.filter_regex {
+            if app.processes.filter_regex {
                 if let Ok(re) = regex::Regex::new(&filter) {
                     processes.retain(|p| {
                         re.is_match(&p.name().to_string_lossy()) ||
@@ -34,16 +34,16 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let total_procs = processes.len();
-    if app.selected >= total_procs && total_procs > 0 {
-        app.selected = total_procs - 1;
+    if app.processes.selected >= total_procs && total_procs > 0 {
+        app.processes.selected = total_procs - 1;
     }
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            if app.filter_active { Constraint::Length(3) } else { Constraint::Length(0) },
+            if app.processes.filter_active { Constraint::Length(3) } else { Constraint::Length(0) },
             Constraint::Min(0),
-            if app.show_detail_panel { Constraint::Length(10) } else { Constraint::Length(0) },
+            if app.processes.show_detail_panel { Constraint::Length(10) } else { Constraint::Length(0) },
         ])
         .split(area);
 
@@ -51,14 +51,14 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let content_idx = 1;
     let detail_idx = 2;
 
-    if app.filter_active {
-        app.filter_text_area.set_block(
+    if app.processes.filter_active {
+        app.processes.filter_text_area.set_block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Filter Processes (Enter/Esc to exit) ")
                 .border_style(theme::style_tab_active())
         );
-        f.render_widget(&app.filter_text_area, chunks[filter_idx]);
+        f.render_widget(&app.processes.filter_text_area, chunks[filter_idx]);
     }
 
     let header_cells = ["PID", "Name", "CPU%", "MEM%", "PR", "THR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
@@ -66,13 +66,13 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|h| Cell::from(*h).style(theme::style_table_header()));
     
     let header = Row::new(header_cells)
-        .style(Style::default().bg(theme::HEADER_BG))
+        .style(Style::default().bg(theme::header_bg()))
         .height(1);
 
     let mut rows: Vec<Row> = Vec::new();
     let mut displayed_processes: Vec<&Process> = Vec::new();
 
-    if app.process_view == ProcessViewMode::Tree {
+    if app.processes.view_mode == ProcessViewMode::Tree {
         // Build tree
         let mut children_map: std::collections::HashMap<Option<sysinfo::Pid>, Vec<&Process>> = std::collections::HashMap::new();
         for p in processes.iter() {
@@ -81,28 +81,28 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
         // Sort children in each node
         for children in children_map.values_mut() {
-            apply_sort(children, app.sort_mode, app.sort_direction, app);
+            apply_sort(children, app.processes.sort_mode, app.processes.sort_direction, app);
         }
 
         flatten_tree(&children_map, None, 0, app, &mut rows, &mut displayed_processes);
     } else {
         for (i, p) in processes.iter().enumerate() {
             displayed_processes.push(p);
-            rows.push(process_to_row(p, i == app.selected, app, "".to_string()));
+            rows.push(process_to_row(p, i == app.processes.selected, app, "".to_string()));
         }
     }
 
     let total_rows = rows.len();
-    if app.selected >= total_rows && total_rows > 0 {
-        app.selected = total_rows - 1;
+    if app.processes.selected >= total_rows && total_rows > 0 {
+        app.processes.selected = total_rows - 1;
     }
 
     let block_title = format!(
         " Processes ({}) │ Sort: {} │ Filter: {}{} ",
         total_rows,
-        app.sort_mode.label(),
-        app.filter_text_area.lines()[0],
-        if app.filter_regex { " [REGEX]" } else { "" }
+        app.processes.sort_mode.label(),
+        app.processes.filter_text_area.lines()[0],
+        if app.processes.filter_regex { " [REGEX]" } else { "" }
     );
 
     let table = Table::new(
@@ -131,16 +131,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(theme::style_border()),
     );
 
-    app.process_table_state.select(Some(app.selected));
-    f.render_stateful_widget(table, chunks[content_idx], &mut app.process_table_state);
-    if app.show_detail_panel && total_rows > 0 {
-        if let Some(p) = displayed_processes.get(app.selected) {
+    app.processes.table_state.select(Some(app.processes.selected));
+    f.render_stateful_widget(table, chunks[content_idx], &mut app.processes.table_state);
+    if app.processes.show_detail_panel && total_rows > 0
+        && let Some(p) = displayed_processes.get(app.processes.selected) {
             render_detail_panel(f, p, chunks[detail_idx], app);
-        }
     }
 
-    if app.signal_menu_open {
-        render_signal_menu(f, area, app.selected_signal);
+    if app.processes.signal_menu_open {
+        render_signal_menu(f, area, app.processes.selected_signal);
     }
 }
 
@@ -209,7 +208,7 @@ pub fn apply_sort(processes: &mut Vec<&Process>, mode: SortMode, direction: Sort
                 a_total.cmp(&b_total)
             },
             SortMode::Pid => a.pid().cmp(&b.pid()),
-            SortMode::Name => a.name().cmp(&b.name()),
+            SortMode::Name => a.name().cmp(b.name()),
             SortMode::DiskIo => (a.disk_usage().read_bytes + a.disk_usage().written_bytes)
                 .cmp(&(b.disk_usage().read_bytes + b.disk_usage().written_bytes)),
             SortMode::Virt => a.virtual_memory().cmp(&b.virtual_memory()),
@@ -267,7 +266,7 @@ fn flatten_tree<'a>(
 ) {
     if let Some(children) = children_map.get(&parent_pid) {
         for p in children {
-            let is_selected = rows.len() == app.selected;
+            let is_selected = rows.len() == app.processes.selected;
             displayed_processes.push(p);
 
             let indent = if depth > 0 {

@@ -16,8 +16,9 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 ## Features
 
-- 📊 **Real-time Overview**: Instant view of your system's health.
-- 💻 **CPU Monitoring**: Per-core history and global usage sparklines.
+- 📊 **Real-time Overview**: Instant view of your system's health with custom themed layouts.
+- 🎨 **Dynamic Theme Presets**: Switch themes dynamically on-the-fly (`T`/`t` keys). Options include Dark, Light, Nord, Catppuccin, Dracula, Gruvbox, and Tokyo Night.
+- 💻 **CPU Monitoring**: Per-core history, frequency, and thermal mapping (absolute range-scaled logic).
 - 🧠 **Memory Tracking**: RAM and SWAP usage with detailed breakdowns. Includes **compressed memory** reporting for macOS.
 - 📂 **Disk I/O**: Live monitoring of disk read/write activities.
 - 🌐 **Network traffic**: History of received and transmitted data across all interfaces (MAC, Speed, Driver).
@@ -32,6 +33,8 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 - 💾 **Historical Persistence**: 7-day rolling window of system metrics stored in a local SQLite database.
 - 📈 **Observability**: Prometheus-compatible exporter and PNG/JSON machine-state snapshots.
 - 🚀 **Full Async Engine**: Decoupled UI and data collection powered by `tokio` for perfect responsiveness.
+- 🛠️ **Upgraded CLI & Configuration**: Full environment-variable mapping, strict value validations, and automatic typo suggestions powered by `clap`.
+- 🧬 **Robust Test Coverage**: An automated integration test suite checking CLI, configuration saving/loading, theme styling, and alerting rules engine.
 
 ## 🔋 Battery & Hardware Monitoring
 
@@ -41,6 +44,18 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
     - **macOS (Apple Silicon)**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required). Optimized for **M4** with support for **ANE Power**, **GPU Frequency (MHz)**, and **Unified Memory** utilization.
     - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
     - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
+
+## 🎨 Dynamic Themes
+
+Tempest Monitor features multiple beautiful built-in color themes to match your terminal setup:
+- **Dark / Catppuccin (Mocha)** (Default)
+- **Light**
+- **Nord**
+- **Dracula**
+- **Gruvbox**
+- **Tokyo Night**
+
+Cycle through themes instantly by pressing `T` on any tab (or `t` on any tab except Processes). Your selected theme is automatically saved to your configuration file (`~/.config/tempest-monitor/config.yaml`) and persisted across sessions.
 
 ## 🛡️ High-Privilege Monitoring
 
@@ -65,7 +80,7 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab`
 - `5`: **Network** - Per-interface traffic stats and interface info (MAC, Speed, Duplex).
 - `6`: **Processes** - The interactive task manager. Hit `Enter` for Focus Mode or `k` for Signal Menu.
 - `7`: **GPU** - Real-time utilization and power consumption charts.
-- `8`: **Services** - macOS: Interactive `launchctl` manager. Linux: `systemd` unit browser. Start/Stop with `Enter`/`s`.
+- `8`: **Services** - Interactive system service manager: macOS `launchctl` and Linux `systemd`. Press `Enter` to open the Service Inspector to read plist/unit files, toggle live log streaming, auto-detect and edit its config file using `$EDITOR` with automatic TUI suspend/resume, or start/stop/restart.
 - `9`: **Sockets** - Real-time network socket enumeration (replacing `netstat`).
 
 ## Controls
@@ -74,7 +89,13 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab`
 |-----|--------|
 | `1`-`9` | Switch between tabs |
 | `Tab` / `Shift+Tab` | Cycle through tabs |
-| `Enter` | **Focus Mode** (Processes) / Start Service (Services) |
+| `Enter` | **Focus Mode** (Processes) / Start/Restart (Services) / Open Inspector (Services list) |
+| `s` / `r` | Stop / Restart service (Services list / Inspector view) |
+| `e` | Edit service plist/unit file (Inspector view - suspends TUI) |
+| `c` | Edit auto-detected service configuration file (Inspector view - suspends TUI) |
+| `l` | Toggle service log viewer pane (Inspector view) |
+| `Esc` | Return to services list (Inspector view) |
+| `F7` / `F8` / `F9` | Toggle CPU Performance Modes: Low Power / Normal / Performance (CPU tab only) |
 | `q` / `Ctrl+C` | Quit |
 | `?` | Toggle help menu |
 | `Space` | Pause/Resume refreshing |
@@ -82,10 +103,11 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`9` or use `Tab`
 | `j` / `k` (or arrows) | Navigate lists |
 | `/` | Start filtering processes |
 | `r` | Toggle Regex mode for filtering |
-| `t` | Toggle Tree View |
+| `t` | Toggle Tree View (Processes tab only) |
+| `T` (or `t` outside Processes) | Cycle color themes (Dark, Light, Nord, Catppuccin, Dracula, Gruvbox, Tokyo Night) |
 | `d` | Toggle detailed process panel |
 | `k` | Open Signal Menu for selected process |
-| `F1`-`F6` | Quick sort options |
+| `F1`-`F6` | Quick sort options (Processes tab only) |
 
 ## Installation
 

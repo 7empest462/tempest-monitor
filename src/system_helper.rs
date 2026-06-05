@@ -89,6 +89,12 @@ pub fn get_services() -> Vec<ServiceEntry> {
     entries
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn get_services() -> Vec<ServiceEntry> {
+    Vec::new()
+}
+
+
 pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
     let mut entries = Vec::new();
     let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;

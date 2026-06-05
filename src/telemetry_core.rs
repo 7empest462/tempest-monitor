@@ -1,5 +1,4 @@
 use serde::{Serialize, Deserialize};
-// No longer needed
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TelemetrySnapshot {

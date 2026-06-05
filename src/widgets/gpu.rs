@@ -43,7 +43,7 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
 
     let text = format!(" Model: {} │ GPU: {}{}{} ", app.gpu_model, usage_str, freq_str, pkg_str);
     let p = Paragraph::new(text)
-        .style(Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD))
         .block(
             Block::default()
                 .title(" GPU Overview ")
@@ -135,14 +135,14 @@ fn power_gauge(label: &str, mw: Option<f64>, max_w: f64) -> Line<'static> {
                         else if watts / max_w > 0.45 { Color::Rgb(249, 226, 175) }
                         else { Color::Rgb(166, 227, 161) };
             Line::from(vec![
-                Span::styled(format!(" {:<18} ", label), Style::default().fg(theme::FG_MUTED)),
+                Span::styled(format!(" {:<18} ", label), Style::default().fg(theme::fg_muted())),
                 Span::styled(bar, Style::default().fg(color)),
                 Span::styled(format!("  {:.2} W", watts), Style::default().fg(color).add_modifier(Modifier::BOLD)),
             ])
         }
         None => Line::from(Span::styled(
             format!(" {:<18} ---", label),
-            Style::default().fg(theme::FG_MUTED),
+            Style::default().fg(theme::fg_muted()),
         )),
     }
 }
@@ -162,13 +162,13 @@ fn render_macos_power_panel(f: &mut Frame, app: &App, area: Rect) {
             Line::from(""),
             Line::from(Span::styled(
                 " (from powermetrics — live)",
-                Style::default().fg(theme::FG_MUTED),
+                Style::default().fg(theme::fg_muted()),
             )),
         ]
     } else {
         vec![
             Line::from(""),
-            Line::from(Span::styled(" No power data.", Style::default().fg(theme::FG_MUTED))),
+            Line::from(Span::styled(" No power data.", Style::default().fg(theme::fg_muted()))),
             Line::from(""),
             Line::from(Span::styled(" Run with sudo to enable", Style::default().fg(Color::Yellow))),
             Line::from(Span::styled(" powermetrics readings.", Style::default().fg(Color::Yellow))),
@@ -230,7 +230,7 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
                     else if temp > 60 { Color::Rgb(249, 226, 175) }
                     else { Color::Rgb(166, 227, 161) };
         lines.push(Line::from(vec![
-            Span::styled(" Temperature      ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(" Temperature      ", Style::default().fg(theme::fg_muted())),
             Span::styled(format!("{}°C", temp), Style::default().fg(color).add_modifier(Modifier::BOLD)),
         ]));
         lines.push(Line::from(""));
@@ -239,8 +239,8 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
     // GPU Clock
     if let Some(clock) = app.gpu_clock_mhz {
         lines.push(Line::from(vec![
-            Span::styled(" GPU Clock        ", Style::default().fg(theme::FG_MUTED)),
-            Span::styled(format!("{} MHz", clock), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" GPU Clock        ", Style::default().fg(theme::fg_muted())),
+            Span::styled(format!("{} MHz", clock), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
         ]));
         lines.push(Line::from(""));
     }
@@ -254,7 +254,7 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
                     else if pct > 50.0 { Color::Rgb(249, 226, 175) }
                     else { Color::Rgb(166, 227, 161) };
         lines.push(Line::from(vec![
-            Span::styled(" VRAM Used        ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(" VRAM Used        ", Style::default().fg(theme::fg_muted())),
             Span::styled(
                 format!("{:.0} / {:.0} MB ({:.1}%)", used_mb, total_mb, pct),
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -270,7 +270,7 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
                     else if usage > 50.0 { Color::Rgb(249, 226, 175) }
                     else { Color::Rgb(166, 227, 161) };
         lines.push(Line::from(vec![
-            Span::styled(" GPU Busy         ", Style::default().fg(theme::FG_MUTED)),
+            Span::styled(" GPU Busy         ", Style::default().fg(theme::fg_muted())),
             Span::styled(format!("{:.1}%", usage), Style::default().fg(color).add_modifier(Modifier::BOLD)),
         ]));
         lines.push(Line::from(""));
@@ -279,14 +279,14 @@ fn render_linux_gpu_stats(f: &mut Frame, app: &App, area: Rect) {
     // Source attribution
     lines.push(Line::from(Span::styled(
         " (from sysfs / hwmon — live)",
-        Style::default().fg(theme::FG_MUTED),
+        Style::default().fg(theme::fg_muted()),
     )));
 
     // If no data at all
     if lines.len() <= 2 {
         lines = vec![
             Line::from(""),
-            Line::from(Span::styled(" No GPU telemetry available.", Style::default().fg(theme::FG_MUTED))),
+            Line::from(Span::styled(" No GPU telemetry available.", Style::default().fg(theme::fg_muted()))),
             Line::from(""),
             Line::from(Span::styled(" Check /sys/class/drm/ and", Style::default().fg(Color::Yellow))),
             Line::from(Span::styled(" /sys/class/hwmon/ for data.", Style::default().fg(Color::Yellow))),
@@ -329,11 +329,26 @@ fn render_macos_unified_memory(f: &mut Frame, app: &App, area: Rect) {
 fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
     #[cfg(target_os = "macos")]
     let items: Vec<ListItem> = vec![
-        ListItem::new(format!(" Model:          {}", app.gpu_model)),
-        ListItem::new(" Architecture:   Apple Silicon (Unified Memory)"),
-        ListItem::new(" Memory:         Shared with CPU (Unified)"),
-        ListItem::new(" Encoder:        Apple Media Engine (HW)"),
-        ListItem::new(" API Support:    Metal 3, CoreML, ANE"),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Model:          ", Style::default().fg(theme::fg_muted())),
+            Span::styled(app.gpu_model.clone(), Style::default().fg(theme::accent())),
+        ])),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Architecture:   ", Style::default().fg(theme::fg_muted())),
+            Span::styled("Apple Silicon (Unified Memory)", Style::default().fg(theme::title_fg())),
+        ])),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Memory:         ", Style::default().fg(theme::fg_muted())),
+            Span::styled("Shared with CPU (Unified)", Style::default().fg(theme::title_fg())),
+        ])),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Encoder:        ", Style::default().fg(theme::fg_muted())),
+            Span::styled("Apple Media Engine (HW)", Style::default().fg(theme::title_fg())),
+        ])),
+        ListItem::new(Line::from(vec![
+            Span::styled(" API Support:    ", Style::default().fg(theme::fg_muted())),
+            Span::styled("Metal 3, CoreML, ANE", Style::default().fg(theme::accent2())),
+        ])),
         ListItem::new(""),
     ];
 
@@ -352,19 +367,40 @@ fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
             _ => "Unknown Architecture",
         };
         vec![
-            ListItem::new(format!(" Model:          {}", app.gpu_model)),
-            ListItem::new(format!(" Architecture:   {}", arch)),
-            ListItem::new(format!(" Driver:         {}", app.gpu_driver)),
-            ListItem::new(format!(" API Support:    {}", api_support)),
-            ListItem::new(format!(" Vendor:         {}", app.gpu_vendor)),
+            ListItem::new(Line::from(vec![
+                Span::styled(" Model:          ", Style::default().fg(theme::fg_muted())),
+                Span::styled(app.gpu_model.clone(), Style::default().fg(theme::accent())),
+            ])),
+            ListItem::new(Line::from(vec![
+                Span::styled(" Architecture:   ", Style::default().fg(theme::fg_muted())),
+                Span::styled(arch, Style::default().fg(theme::title_fg())),
+            ])),
+            ListItem::new(Line::from(vec![
+                Span::styled(" Driver:         ", Style::default().fg(theme::fg_muted())),
+                Span::styled(app.gpu_driver.clone(), Style::default().fg(theme::title_fg())),
+            ])),
+            ListItem::new(Line::from(vec![
+                Span::styled(" API Support:    ", Style::default().fg(theme::fg_muted())),
+                Span::styled(api_support, Style::default().fg(theme::accent2())),
+            ])),
+            ListItem::new(Line::from(vec![
+                Span::styled(" Vendor:         ", Style::default().fg(theme::fg_muted())),
+                Span::styled(app.gpu_vendor.clone(), Style::default().fg(theme::accent())),
+            ])),
             ListItem::new(""),
         ]
     };
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let items: Vec<ListItem> = vec![
-        ListItem::new(format!(" Model:          {}", app.gpu_model)),
-        ListItem::new(" Architecture:   Unknown"),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Model:          ", Style::default().fg(theme::fg_muted())),
+            Span::styled(app.gpu_model.clone(), Style::default().fg(theme::accent())),
+        ])),
+        ListItem::new(Line::from(vec![
+            Span::styled(" Architecture:   ", Style::default().fg(theme::fg_muted())),
+            Span::styled("Unknown", Style::default().fg(theme::title_fg())),
+        ])),
         ListItem::new(""),
     ];
 

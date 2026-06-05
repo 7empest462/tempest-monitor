@@ -23,7 +23,7 @@ pub fn get_top_memory_processes(count: usize) -> Vec<ProcessSummary> {
     }).collect();
 
     // Sort by memory descending
-    processes.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    processes.sort_by_key(|b| std::cmp::Reverse(b.memory_bytes));
     processes.truncate(count);
     processes
 }

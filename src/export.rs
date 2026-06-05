@@ -100,18 +100,18 @@ pub fn export_chart_png(app: &App, path: &str) -> Result<(), Box<dyn std::error:
     
     chart.draw_series(LineSeries::new(cpu_data, &BLUE))?
         .label("CPU %")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], BLUE));
 
     let mem_data: Vec<(i32, i32)> = app.ram_history.iter().enumerate()
         .map(|(i, &v)| (i as i32, v as i32)).collect();
 
     chart.draw_series(LineSeries::new(mem_data, &MAGENTA))?
         .label("MEM %")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], MAGENTA));
 
     chart.configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
+        .background_style(WHITE.mix(0.8))
+        .border_style(BLACK)
         .draw()?;
 
     root.present()?;

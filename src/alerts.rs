@@ -4,15 +4,14 @@ use notify_rust::Notification;
 use crate::app::App;
 use crate::config::AlertRuleConfig;
 
+#[derive(Default)]
 pub struct AlertEngine {
     last_notified: HashMap<String, Instant>,
 }
 
 impl AlertEngine {
     pub fn new() -> Self {
-        Self {
-            last_notified: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn check_rules(&mut self, app: &App, rules: &[AlertRuleConfig]) {
@@ -36,10 +35,9 @@ impl AlertEngine {
     fn trigger_alert(&mut self, rule: &AlertRuleConfig, current_value: f64) {
         let key = format!("{}_{}", rule.metric, rule.threshold);
         
-        if let Some(last) = self.last_notified.get(&key) {
-            if last.elapsed() < Duration::from_secs(rule.cooldown_secs) {
+        if let Some(last) = self.last_notified.get(&key)
+            && last.elapsed() < Duration::from_secs(rule.cooldown_secs) {
                 return;
-            }
         }
 
         if rule.action == "notify" {

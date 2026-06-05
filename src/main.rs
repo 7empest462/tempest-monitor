@@ -12,6 +12,7 @@ use ratatui::Terminal;
 use tempest_monitor::db;
 use tempest_monitor::{
     App,
+    app::ActiveTab,
     cli::CliArgs,
     config::TempestConfig,
     ui,
@@ -45,6 +46,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cfg = TempestConfig::load(cli.config.as_deref());
     cfg.apply_cli(&cli);
 
+    // Set dynamic theme
+    tempest_monitor::theme::set_theme(&cfg.theme);
+
     log::debug!("Config: {:?}", cfg);
 
     // Initialize Database
@@ -70,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new_with_config(&cli, &cfg);
+    let mut app = App::new_with_config(&cli, &cfg, cli.config.clone());
     
     // Handle One-shot Exports
     if let Some(ref _path) = cli.export_json {
@@ -130,26 +134,51 @@ async fn run_app(
     let mut last_save = std::time::Instant::now();
     let save_interval = std::time::Duration::from_secs(60); // Save metrics every minute
     let mut alert_engine = alerts::AlertEngine::new();
+    let mut last_tab = app.active_tab;
 
     loop {
+        // Load history snapshots immediately on tab switch
+        if app.active_tab == ActiveTab::History && (last_tab != ActiveTab::History || app.history.snapshots.is_empty()) {
+            if let Ok(snaps) = db.get_recent_snapshots(50).await {
+                app.history.snapshots = snaps;
+                if app.history.selected >= app.history.snapshots.len() && !app.history.snapshots.is_empty() {
+                    app.history.selected = app.history.snapshots.len() - 1;
+                }
+            }
+            last_tab = app.active_tab;
+        }
+
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
         let timeout = app.tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or(Duration::from_secs(0));
 
-        if event::poll(timeout)? {
-            if let event::Event::Key(key) = event::read()? {
-                if !input::handle_key(key, &mut app) {
-                    break;
-                }
-            }
+        if event::poll(timeout)?
+            && let event::Event::Key(key) = event::read()?
+            && !input::handle_key(key, &mut app) {
+                break;
+        }
+
+        // Handle editor request (suspend TUI, spawn editor, resume TUI)
+        if let Some(path) = app.editor_request.take() {
+            spawn_editor(terminal, &path)?;
         }
 
         if last_tick.elapsed() >= app.tick_rate {
             app.refresh();
             app.update_focus_history();
             
+            // Periodic history refresh
+            if app.active_tab == ActiveTab::History
+                && let Ok(snaps) = db.get_recent_snapshots(50).await
+            {
+                app.history.snapshots = snaps;
+                if app.history.selected >= app.history.snapshots.len() && !app.history.snapshots.is_empty() {
+                    app.history.selected = app.history.snapshots.len() - 1;
+                }
+            }
+
             // Phase 13: Alerting
             alert_engine.check_rules(&app, &app.config.alerts);
 
@@ -209,12 +238,15 @@ async fn run_app_no_db(
             .checked_sub(last_tick.elapsed())
             .unwrap_or(Duration::from_secs(0));
 
-        if event::poll(timeout)? {
-            if let event::Event::Key(key) = event::read()? {
-                if !input::handle_key(key, &mut app) {
-                    break;
-                }
-            }
+        if event::poll(timeout)?
+            && let event::Event::Key(key) = event::read()?
+            && !input::handle_key(key, &mut app) {
+                break;
+        }
+
+        // Handle editor request (suspend TUI, spawn editor, resume TUI)
+        if let Some(path) = app.editor_request.take() {
+            spawn_editor(terminal, &path)?;
         }
 
         if last_tick.elapsed() >= app.tick_rate {
@@ -227,5 +259,45 @@ async fn run_app_no_db(
             last_tick = std::time::Instant::now();
         }
     }
+    Ok(())
+}
+
+/// Suspend the TUI, spawn an editor for the given file, and resume the TUI.
+fn spawn_editor(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    path: &str,
+) -> io::Result<()> {
+    let editor = tempest_monitor::service_inspector::get_editor();
+
+    // 1. Leave the alternate screen and disable raw mode
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    // 2. Spawn the editor and wait for it to finish
+    let status = std::process::Command::new(&editor)
+        .arg(path)
+        .status();
+
+    if let Err(e) = &status {
+        eprintln!("Failed to open editor '{}': {}", editor, e);
+        eprintln!("Set $EDITOR to your preferred editor.");
+        eprintln!("Press Enter to continue...");
+        let _ = io::stdin().read_line(&mut String::new());
+    }
+
+    // 3. Re-enter the TUI
+    enable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture
+    )?;
+    terminal.clear()?;
+
     Ok(())
 }

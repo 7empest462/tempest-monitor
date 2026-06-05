@@ -1,7 +1,7 @@
 [package]
 name = "tempest-monitor"
-version = "0.4.3"
-authors = ["7empest_mac"]
+version = "0.4.4"
+authors = ["7empest462"]
 description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
 repository = "https://github.com/7empest462/tempest-monitor"
 homepage = "https://github.com/7empest462/tempest-monitor"
@@ -33,52 +33,52 @@ export = ["dep:plotters"]
 # ── Core TUI ──────────────────────────────────────────────────────────────────
 crossterm = { version = "0.29", features = ["event-stream"] }
 ratatui = "0.30"
-sysinfo = "0.39"
-battery = "0.7"
+sysinfo = "0.39.3"
+battery = "0.7.8"
 unicode-width = "0.2.2"
-chrono = "0.4"
-libc = "0.2"
-regex = "1.10"
+chrono = "0.4.45"
+libc = "0.2.186"
+regex = "1.12.3"
 dirs = "6"
 
 # ── Phase 8: Foundation & CLI ─────────────────────────────────────────────────
-clap = { version = "4.6", features = ["derive"] }
-config = "0.14"
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
-thiserror = "2"
-parking_lot = "0.12"
-dashmap = "6.2"
-futures = "0.3"
+clap = { version = "4.6.1", features = ["derive", "env"] }
+config = "0.15.23"
+serde = { version = "1.0.228", features = ["derive"] }
+yaml_serde = "0.10.4"
+thiserror = "2.0.18"
+parking_lot = "0.12.5"
+dashmap = "6.2.1"
+futures = "0.3.32"
 
 # ── Phase 9: Enhanced Process & Sockets ───────────────────────────────────────
-netstat2 = "0.11"
+netstat2 = "0.11.2"
 ratatui-textarea = { version = "0.9.1", features = ["crossterm"] }
 
 # ── Phase 10: Network Intelligence ───────────────────────────────────────────
 pnet = "0.35"
 
 # ── Phase 12: Persistence ────────────────────────────────────────────────────
-tokio = { version = "1.52", features = ["full"] }
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"], optional = true }
+tokio = { version = "1.52.3", features = ["full"] }
+sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio"], optional = true }
 
 # ── Phase 13: Alerting ───────────────────────────────────────────────────────
-notify-rust = "4"
-log = "0.4"
-env_logger = "0.11"
+notify-rust = "4.17.0"
+log = "0.4.32"
+env_logger = "0.11.10"
 
 # ── Phase 14: Metrics Export ─────────────────────────────────────────────────
-reqwest = { version = "0.12", features = ["json"], optional = true }
-metrics = { version = "0.24", optional = true }
-metrics-exporter-prometheus = { version = "0.16", optional = true }
-serde_json = "1"
+reqwest = { version = "0.13.4", features = ["json"], optional = true }
+metrics = { version = "0.24.6", optional = true }
+metrics-exporter-prometheus = { version = "0.18.3", optional = true }
+serde_json = "1.0.150"
 
 # ── Phase 15: Visualization ──────────────────────────────────────────────────
-plotters = { version = "0.3", optional = true }
+plotters = { version = "0.3.7", optional = true }
 
 # ── Platform-specific ────────────────────────────────────────────────────────
 [target.'cfg(target_os = "linux")'.dependencies]
-procfs = "0.17"
-nvml-wrapper = "0.10"
-ethtool = "0.2"
-openssl = { version = "0.10", features = ["vendored"] }
+procfs = "0.18"
+nvml-wrapper = "0.12.1"
+ethtool = "0.2.9"
+openssl = { version = "0.10.80", features = ["vendored"] }

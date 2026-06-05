@@ -12,6 +12,7 @@ use ratatui_textarea::TextArea;
 
 use crate::cli::CliArgs;
 use crate::config::TempestConfig;
+use crate::power_mode::CpuPowerMode;
 
 // ── History buffer size (number of sparkline data points) ────────────────────
 pub const HISTORY_LEN: usize = 120;
@@ -31,10 +32,11 @@ pub enum ActiveTab {
     Gpu,
     Services,
     Sockets,
+    History,
 }
 
 impl ActiveTab {
-    pub const ALL: [ActiveTab; 9] = [
+    pub const ALL: [ActiveTab; 10] = [
         ActiveTab::Overview,
         ActiveTab::Cpu,
         ActiveTab::Memory,
@@ -44,6 +46,7 @@ impl ActiveTab {
         ActiveTab::Gpu,
         ActiveTab::Services,
         ActiveTab::Sockets,
+        ActiveTab::History,
     ];
 
     pub fn index(self) -> usize {
@@ -57,20 +60,22 @@ impl ActiveTab {
             ActiveTab::Gpu      => 6,
             ActiveTab::Services => 7,
             ActiveTab::Sockets  => 8,
+            ActiveTab::History  => 9,
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            ActiveTab::Overview  => "Overvw",
+            ActiveTab::Overview  => "Overview",
             ActiveTab::Cpu      => "CPU",
-            ActiveTab::Memory   => "Mem",
+            ActiveTab::Memory   => "RAM",
             ActiveTab::Disks    => "Disk",
             ActiveTab::Network  => "Net",
             ActiveTab::Processes => "Proc",
             ActiveTab::Gpu      => "GPU",
             ActiveTab::Services => "Svc",
             ActiveTab::Sockets  => "Socks",
+            ActiveTab::History  => "History",
         }
     }
 }
@@ -112,6 +117,14 @@ pub enum SortDirection {
 pub enum ProcessViewMode {
     List,
     Tree,
+}
+
+// ── Service Inspector mode ───────────────────────────────────────────────────
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum ServiceInspectorMode {
+    View,   // Show service file contents
+    Logs,   // Show service logs
 }
 
 // ── Signals ──────────────────────────────────────────────────────────────────
@@ -165,10 +178,70 @@ pub struct ProcessExtraInfo {
     pub priority: i32,
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct MetricSnapshot {
+    pub id: i64,
+    pub timestamp: String,
+    pub cpu_usage: f64,
+    pub mem_used_gb: f64,
+    pub gpu_usage: f64,
+    pub net_rx_kbps: f64,
+    pub net_tx_kbps: f64,
+}
+
+pub struct ProcessesState {
+    pub sort_mode: SortMode,
+    pub sort_direction: SortDirection,
+    pub view_mode: ProcessViewMode,
+    pub table_state: ratatui::widgets::TableState,
+    pub filter_text_area: TextArea<'static>,
+    pub filter_active: bool,
+    pub filter_regex: bool,
+    pub selected: usize,
+    pub show_detail_panel: bool,
+    pub signal_menu_open: bool,
+    pub selected_signal: usize,
+    pub focus_pid: Option<sysinfo::Pid>,
+    pub focus_cpu_history: VecDeque<u64>,
+    pub focus_mem_history: VecDeque<u64>,
+    pub extra_cache: HashMap<sysinfo::Pid, ProcessExtraInfo>,
+}
+
+pub struct ServicesState {
+    pub list: Vec<ServiceEntry>,
+    pub selected: usize,
+    pub action_pending: Option<String>,
+    pub inspector_open: bool,
+    pub inspector_scroll: u16,
+    pub file_path: Option<String>,
+    pub file_contents: Option<String>,
+    pub config_path: Option<String>,
+    pub log_lines: Vec<String>,
+    pub inspector_mode: ServiceInspectorMode,
+    pub is_sip_protected: bool,
+}
+
+pub struct SocketsState {
+    pub list: Vec<SocketEntry>,
+    pub selected: usize,
+}
+
+pub struct CpuPowerState {
+    pub mode: CpuPowerMode,
+    pub feedback: Option<String>,
+    pub available_modes: Vec<CpuPowerMode>,
+}
+
+pub struct HistoryState {
+    pub snapshots: Vec<MetricSnapshot>,
+    pub selected: usize,
+}
+
 // ── Main App state ───────────────────────────────────────────────────────────
 
 pub struct App {
     pub config: TempestConfig,
+    pub config_path: Option<String>,
 
     // sysinfo collectors
     pub sys: System,
@@ -222,35 +295,15 @@ pub struct App {
     pub net_tx_history: VecDeque<u64>,        // bytes/s transmitted (total)
     pub gpu_history: VecDeque<u64>,           // GPU % (0-100)
 
-    pub sort_mode: SortMode,
-    pub sort_direction: SortDirection,
-    pub process_view: ProcessViewMode,
-    pub process_table_state: ratatui::widgets::TableState,
-    pub filter_text_area: TextArea<'static>,
-    pub filter_active: bool,
-    pub filter_regex: bool,
-    pub selected: usize,
-    pub show_detail_panel: bool,
+    // Sub-states
+    pub processes: ProcessesState,
+    pub services: ServicesState,
+    pub sockets: SocketsState,
+    pub cpu_power: CpuPowerState,
+    pub history: HistoryState,
 
-    // Signal menu
-    pub signal_menu_open: bool,
-    pub selected_signal: usize,
-
-    // Services (Tab 8)
-    pub services: Vec<ServiceEntry>,
-    pub service_selected: usize,
-    pub service_action_pending: Option<String>, // feedback message
-
-    // Network sockets (Tab 9)
-    pub sockets: Vec<SocketEntry>,
-    pub socket_selected: usize,
-
-    // Process Focus mode (Enter on a process)
-    pub focus_pid: Option<sysinfo::Pid>,
-    pub focus_cpu_history: VecDeque<u64>,
-    pub focus_mem_history: VecDeque<u64>,
-
-    pub process_extra_cache: HashMap<sysinfo::Pid, ProcessExtraInfo>,
+    // Editor request (set by input, consumed by main loop)
+    pub editor_request: Option<String>,
 
     // Timing
     pub tick_rate: Duration,
@@ -264,7 +317,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new_with_config(_cli: &CliArgs, config: &TempestConfig) -> Self {
+    pub fn new_with_config(_cli: &CliArgs, config: &TempestConfig, config_path: Option<String>) -> Self {
         let refresh_kind = RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::everything())
@@ -298,11 +351,13 @@ impl App {
             7 => ActiveTab::Gpu,
             8 => ActiveTab::Services,
             9 => ActiveTab::Sockets,
+            10 => ActiveTab::History,
             _ => ActiveTab::Overview,
         };
 
         let mut app = App {
             config: config.clone(),
+            config_path,
             sys,
             networks: Networks::new(),
             disks: Disks::new(),
@@ -324,19 +379,6 @@ impl App {
             net_rx_history: VecDeque::with_capacity(HISTORY_LEN),
             net_tx_history: VecDeque::with_capacity(HISTORY_LEN),
             gpu_history: VecDeque::with_capacity(HISTORY_LEN),
-
-            sort_mode: SortMode::Cpu,
-            sort_direction: SortDirection::Desc,
-            process_view: ProcessViewMode::List,
-            process_table_state: ratatui::widgets::TableState::default(),
-            filter_text_area: TextArea::default(),
-            filter_active: false,
-            filter_regex: false,
-            selected: 0,
-            show_detail_panel: false,
-
-            signal_menu_open: false,
-            selected_signal: 0,
 
             tick_rate: Duration::from_millis(config.refresh_rate_ms),
             last_update: Instant::now() - Duration::from_secs(10), // force immediate first refresh
@@ -368,18 +410,55 @@ impl App {
 
             network_info: HashMap::new(),
 
-            services: Vec::new(),
-            service_selected: 0,
-            service_action_pending: None,
+            processes: ProcessesState {
+                sort_mode: SortMode::Cpu,
+                sort_direction: SortDirection::Desc,
+                view_mode: ProcessViewMode::List,
+                table_state: ratatui::widgets::TableState::default(),
+                filter_text_area: TextArea::default(),
+                filter_active: false,
+                filter_regex: false,
+                selected: 0,
+                show_detail_panel: false,
+                signal_menu_open: false,
+                selected_signal: 0,
+                focus_pid: None,
+                focus_cpu_history: VecDeque::with_capacity(HISTORY_LEN),
+                focus_mem_history: VecDeque::with_capacity(HISTORY_LEN),
+                extra_cache: HashMap::new(),
+            },
 
-            sockets: Vec::new(),
-            socket_selected: 0,
+            services: ServicesState {
+                list: Vec::new(),
+                selected: 0,
+                action_pending: None,
+                inspector_open: false,
+                inspector_scroll: 0,
+                file_path: None,
+                file_contents: None,
+                config_path: None,
+                log_lines: Vec::new(),
+                inspector_mode: ServiceInspectorMode::View,
+                is_sip_protected: false,
+            },
 
-            focus_pid: None,
-            focus_cpu_history: VecDeque::with_capacity(HISTORY_LEN),
-            focus_mem_history: VecDeque::with_capacity(HISTORY_LEN),
+            sockets: SocketsState {
+                list: Vec::new(),
+                selected: 0,
+            },
 
-            process_extra_cache: HashMap::new(),
+            cpu_power: CpuPowerState {
+                mode: crate::power_mode::detect_power_mode(),
+                feedback: None,
+                available_modes: crate::power_mode::available_modes(),
+            },
+
+            history: HistoryState {
+                snapshots: Vec::new(),
+                selected: 0,
+            },
+
+            editor_request: None,
         };
 
         // Perform initial GPU detection to populate model and initial stats
@@ -394,6 +473,25 @@ impl App {
             buf.pop_front();
         }
         buf.push_back(val);
+    }
+
+    /// Cycle to the next theme dynamically and save the setting to config.yaml.
+    pub fn cycle_theme(&mut self) {
+        let next_theme = match self.config.theme.to_lowercase().as_str() {
+            "dark" => "light",
+            "light" => "nord",
+            "nord" => "catppuccin",
+            "catppuccin" => "dracula",
+            "dracula" => "gruvbox",
+            "gruvbox" => "tokyo-night",
+            "tokyo-night" | "tokyo_night" | "tokyonight" => "dark",
+            _ => "dark",
+        };
+        self.config.theme = next_theme.to_string();
+        crate::theme::set_theme(&self.config.theme);
+        if let Err(e) = self.config.save(self.config_path.as_deref()) {
+            log::warn!("Failed to save theme config: {}", e);
+        }
     }
 
     /// Refresh all system data and update history buffers.
@@ -432,10 +530,10 @@ impl App {
             // Expensive platform-specific metadata calculations
             cfg_select! {
                 target_os = "macos" => {
-                    self.process_extra_cache.clear();
+                    self.processes.extra_cache.clear();
                     for pid in self.sys.processes().keys() {
                         if let Some(meta) = crate::macos_helper::get_process_metadata(pid.as_u32() as i32) {
-                            self.process_extra_cache.insert(*pid, ProcessExtraInfo {
+                            self.processes.extra_cache.insert(*pid, ProcessExtraInfo {
                                 compressed_mem: meta.compressed,
                                 thread_count: meta.thread_count,
                                 priority: meta.priority,
@@ -444,10 +542,10 @@ impl App {
                     }
                 },
                 target_os = "linux" => {
-                    self.process_extra_cache.clear();
+                    self.processes.extra_cache.clear();
                     for pid in self.sys.processes().keys() {
                         if let Some(meta) = crate::linux_helper::get_process_metadata(pid.as_u32() as i32) {
-                            self.process_extra_cache.insert(*pid, ProcessExtraInfo {
+                            self.processes.extra_cache.insert(*pid, ProcessExtraInfo {
                                 compressed_mem: 0,
                                 thread_count: meta.thread_count,
                                 priority: meta.priority,
@@ -573,40 +671,39 @@ impl App {
         Self::push_history(&mut self.swap_history, swap_pct);
 
         // Network history (total across all interfaces)
-        let rx: u64 = self.networks.iter().map(|(_, d): (&String, &sysinfo::NetworkData)| d.received()).sum();
-        let tx: u64 = self.networks.iter().map(|(_, d): (&String, &sysinfo::NetworkData)| d.transmitted()).sum();
+        let rx: u64 = self.networks.values().map(|d| d.received()).sum();
+        let tx: u64 = self.networks.values().map(|d| d.transmitted()).sum();
         Self::push_history(&mut self.net_rx_history, rx);
         Self::push_history(&mut self.net_tx_history, tx);
 
         // Battery
-        if let Some(ref mgr) = self.battery_manager {
-            if let Ok(mut batteries) = mgr.batteries() {
-                if let Some(Ok(bat)) = batteries.next() {
-                    let state = bat.state();
-                    let percent = bat.state_of_charge().get::<battery::units::ratio::percent>() as f64;
-                    
-                    // Sanity check for macOS "Unknown" state when plugged in
-                    let state_str = if format!("{:?}", state) == "Unknown" {
-                        if percent > 95.0 {
-                            "Full / Plugged In".to_string()
-                        } else {
-                            "Plugged In / Not Charging".to_string()
-                        }
-                    } else {
-                        format!("{:?}", state)
-                    };
-
-                    self.battery_info = Some(BatteryInfo {
-                        percent,
-                        state: state_str,
-                        time_remaining: bat.time_to_empty().map(|t| {
-                            Duration::from_secs(
-                                t.get::<battery::units::time::second>() as u64,
-                            )
-                        }),
-                    });
+        if let Some(ref mgr) = self.battery_manager
+            && let Ok(mut batteries) = mgr.batteries()
+            && let Some(Ok(bat)) = batteries.next()
+        {
+            let state = bat.state();
+            let percent = bat.state_of_charge().get::<battery::units::ratio::percent>() as f64;
+            
+            // Sanity check for macOS "Unknown" state when plugged in
+            let state_str = if format!("{:?}", state) == "Unknown" {
+                if percent > 95.0 {
+                    "Full / Plugged In".to_string()
+                } else {
+                    "Plugged In / Not Charging".to_string()
                 }
-            }
+            } else {
+                format!("{:?}", state)
+            };
+
+            self.battery_info = Some(BatteryInfo {
+                percent,
+                state: state_str,
+                time_remaining: bat.time_to_empty().map(|t| {
+                    Duration::from_secs(
+                        t.get::<battery::units::time::second>() as u64,
+                    )
+                }),
+            });
         }
 
         self.last_update = now;
@@ -619,12 +716,12 @@ impl App {
 
     /// Get extra info for a process.
     pub fn get_extra_info(&self, pid: sysinfo::Pid) -> ProcessExtraInfo {
-        self.process_extra_cache.get(&pid).cloned().unwrap_or_default()
+        self.processes.extra_cache.get(&pid).cloned().unwrap_or_default()
     }
 
     /// Get compressed memory for a process.
     pub fn get_compressed_mem(&self, pid: sysinfo::Pid) -> u64 {
-        self.process_extra_cache.get(&pid).map(|e| e.compressed_mem).unwrap_or(0)
+        self.processes.extra_cache.get(&pid).map(|e| e.compressed_mem).unwrap_or(0)
     }
 
     /// Refresh GPU usage and power data.
@@ -666,35 +763,104 @@ impl App {
 
     /// Refresh list of services via `launchctl` (macOS) or `systemctl` (Linux).
     pub fn refresh_services(&mut self) {
-        self.services = crate::system_helper::get_services();
+        self.services.list = crate::system_helper::get_services();
         
         // Clamp selection
-        if self.service_selected >= self.services.len() && !self.services.is_empty() {
-            self.service_selected = self.services.len() - 1;
+        if self.services.selected >= self.services.list.len() && !self.services.list.is_empty() {
+            self.services.selected = self.services.list.len() - 1;
         }
     }
 
     /// Refresh active TCP/UDP sockets via netstat2 (native).
     pub fn refresh_sockets(&mut self) {
-        self.sockets = crate::system_helper::get_sockets(&self.sys);
+        self.sockets.list = crate::system_helper::get_sockets(&self.sys);
 
         // Clamp selection
-        if self.socket_selected >= self.sockets.len() && !self.sockets.is_empty() {
-            self.socket_selected = self.sockets.len() - 1;
+        if self.sockets.selected >= self.sockets.list.len() && !self.sockets.list.is_empty() {
+            self.sockets.selected = self.sockets.list.len() - 1;
         }
     }
 
     /// Update per-process focus history (called every tick if focus_pid is set).
     pub fn update_focus_history(&mut self) {
-        if let Some(pid) = self.focus_pid {
-            if let Some(proc) = self.sys.process(pid) {
-                let cpu = proc.cpu_usage() as u64;
-                let mem_total = self.get_compressed_mem(pid);
-                let mem_bytes = proc.memory() + mem_total;
-                let total_mem = self.sys.total_memory();
-                let mem_pct = if total_mem > 0 { mem_bytes * 100 / total_mem } else { 0 };
-                Self::push_history(&mut self.focus_cpu_history, cpu);
-                Self::push_history(&mut self.focus_mem_history, mem_pct);
+        if let Some(pid) = self.processes.focus_pid
+            && let Some(proc) = self.sys.process(pid)
+        {
+            let cpu = proc.cpu_usage() as u64;
+            let mem_total = self.get_compressed_mem(pid);
+            let mem_bytes = proc.memory() + mem_total;
+            let total_mem = self.sys.total_memory();
+            let mem_pct = (mem_bytes * 100).checked_div(total_mem).unwrap_or(0);
+            Self::push_history(&mut self.processes.focus_cpu_history, cpu);
+            Self::push_history(&mut self.processes.focus_mem_history, mem_pct);
+        }
+    }
+
+    /// Open the service inspector for the currently selected service.
+    pub fn open_service_inspector(&mut self) {
+        if let Some(svc) = self.services.list.get(self.services.selected) {
+            let label = svc.label.clone();
+
+            // Resolve the service file path
+            let file_path = crate::service_inspector::resolve_service_file(&label);
+            let file_contents = file_path.as_ref()
+                .and_then(|p| crate::service_inspector::read_service_file(p));
+
+            // Detect config file
+            let config_path = file_contents.as_ref()
+                .and_then(|c| crate::service_inspector::detect_config_file(c));
+
+            // Check SIP protection
+            let is_protected = file_path.as_ref()
+                .map(|p| crate::service_inspector::is_sip_protected(p))
+                .unwrap_or(false);
+
+            self.services.file_path = file_path;
+            self.services.file_contents = file_contents;
+            self.services.config_path = config_path;
+            self.services.is_sip_protected = is_protected;
+            self.services.inspector_scroll = 0;
+            self.services.inspector_mode = ServiceInspectorMode::View;
+            self.services.log_lines.clear();
+            self.services.inspector_open = true;
+        }
+    }
+
+    /// Close the service inspector and return to the list.
+    pub fn close_service_inspector(&mut self) {
+        self.services.inspector_open = false;
+        self.services.file_path = None;
+        self.services.file_contents = None;
+        self.services.config_path = None;
+        self.services.log_lines.clear();
+        self.services.is_sip_protected = false;
+    }
+
+    /// Load logs for the currently inspected service.
+    pub fn load_service_logs(&mut self) {
+        if let Some(svc) = self.services.list.get(self.services.selected) {
+            let label = svc.label.clone();
+            self.services.log_lines = crate::service_inspector::get_service_logs(
+                &label,
+                self.services.file_contents.as_deref(),
+            );
+        }
+    }
+
+    /// Refresh the current CPU power mode.
+    pub fn refresh_cpu_power_mode(&mut self) {
+        self.cpu_power.mode = crate::power_mode::detect_power_mode();
+    }
+
+    /// Set CPU power mode and store feedback.
+    pub fn set_cpu_power_mode(&mut self, mode: CpuPowerMode) {
+        match crate::power_mode::set_power_mode(mode) {
+            Ok(msg) => {
+                self.cpu_power.feedback = Some(msg);
+                self.cpu_power.mode = mode;
+            }
+            Err(msg) => {
+                self.cpu_power.feedback = Some(msg);
             }
         }
     }

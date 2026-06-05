@@ -1,8 +1,8 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Application configuration loaded from YAML file + CLI overrides.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct TempestConfig {
     /// Default tab on startup (1-9)
@@ -33,7 +33,7 @@ pub struct TempestConfig {
     pub metrics_port: u16,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AlertRuleConfig {
     /// Metric to monitor: "cpu", "memory", "gpu", "disk", "swap"
     pub metric: String,
@@ -81,7 +81,7 @@ impl TempestConfig {
         }
 
         match std::fs::read_to_string(&config_path) {
-            Ok(contents) => match serde_yaml::from_str(&contents) {
+            Ok(contents) => match yaml_serde::from_str(&contents) {
                 Ok(cfg) => {
                     log::info!("Loaded config from {:?}", config_path);
                     cfg
@@ -115,11 +115,32 @@ impl TempestConfig {
         if let Some(port) = cli.metrics_port {
             self.metrics_port = port;
         }
+        if let Some(ref theme) = cli.theme {
+            self.theme = theme.clone();
+        }
+    }
+
+    /// Save the current configuration to the config file path.
+    pub fn save(&self, path: Option<&str>) -> Result<(), std::io::Error> {
+        let config_path = if let Some(p) = path {
+            PathBuf::from(p)
+        } else {
+            dirs_config_path()
+        };
+
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let yaml = yaml_serde::to_string(self)
+            .map_err(std::io::Error::other)?;
+        std::fs::write(config_path, yaml)?;
+        Ok(())
     }
 }
 
 /// Default config directory: ~/.config/tempest-monitor/config.yaml
-fn dirs_config_path() -> PathBuf {
+pub fn dirs_config_path() -> PathBuf {
     if let Some(home) = std::env::var_os("HOME") {
         PathBuf::from(home)
             .join(".config")
