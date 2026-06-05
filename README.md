@@ -143,7 +143,7 @@ In addition to being a TUI application, `tempest-monitor` is also a reusable lib
 To use it, add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-tempest-monitor = "0.4.4"
+tempest-monitor = "0.4.5"
 ```
 
 ### Telemetry Capabilities:
