@@ -1,6 +1,6 @@
 [package]
 name = "tempest-monitor"
-version = "0.4.5"
+version = "0.4.6"
 authors = ["7empest462"]
 description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
 repository = "https://github.com/7empest462/tempest-monitor"
@@ -34,7 +34,7 @@ export = ["dep:plotters"]
 crossterm = { version = "0.29", features = ["event-stream"] }
 ratatui = "0.30"
 sysinfo = "0.39.3"
-battery = "0.7.8"
+starship-battery = "0.11.0"
 unicode-width = "0.2.2"
 chrono = "0.4.45"
 libc = "0.2.186"

@@ -278,7 +278,7 @@ pub struct App {
     pub network_info: HashMap<String, NetworkInterfaceInfo>,
 
     // Battery
-    pub battery_manager: Option<battery::Manager>,
+    pub battery_manager: Option<starship_battery::Manager>,
     pub battery_info: Option<BatteryInfo>,
 
     // UI state
@@ -326,15 +326,15 @@ impl App {
         let sys = System::new_with_specifics(refresh_kind);
         let num_cpus = sys.cpus().len();
 
-        let battery_manager = battery::Manager::new().ok();
+        let battery_manager = starship_battery::Manager::new().ok();
         let battery_info = battery_manager.as_ref().and_then(|mgr| {
             mgr.batteries().ok().and_then(|mut iter| {
                 iter.next().and_then(|b| {
                     b.ok().map(|bat| BatteryInfo {
-                        percent: bat.state_of_charge().get::<battery::units::ratio::percent>() as f64,
+                        percent: bat.state_of_charge().get::<starship_battery::units::ratio::percent>() as f64,
                         state: format!("{:?}", bat.state()),
                         time_remaining: bat.time_to_empty().map(|t| {
-                            Duration::from_secs(t.get::<battery::units::time::second>() as u64)
+                            Duration::from_secs(t.get::<starship_battery::units::time::second>() as u64)
                         }),
                     })
                 })
@@ -682,7 +682,7 @@ impl App {
             && let Some(Ok(bat)) = batteries.next()
         {
             let state = bat.state();
-            let percent = bat.state_of_charge().get::<battery::units::ratio::percent>() as f64;
+            let percent = bat.state_of_charge().get::<starship_battery::units::ratio::percent>() as f64;
             
             // Sanity check for macOS "Unknown" state when plugged in
             let state_str = if format!("{:?}", state) == "Unknown" {
@@ -700,7 +700,7 @@ impl App {
                 state: state_str,
                 time_remaining: bat.time_to_empty().map(|t| {
                     Duration::from_secs(
-                        t.get::<battery::units::time::second>() as u64,
+                        t.get::<starship_battery::units::time::second>() as u64,
                     )
                 }),
             });
