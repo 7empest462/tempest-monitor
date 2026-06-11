@@ -1,12 +1,13 @@
 [package]
 name = "tempest-monitor"
-version = "0.4.6"
+version = "0.4.7"
 authors = ["7empest462"]
 description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
 repository = "https://github.com/7empest462/tempest-monitor"
 homepage = "https://github.com/7empest462/tempest-monitor"
 documentation = "https://docs.rs/tempest-monitor"
 license-file = "LICENSE"
+license = "BSL-1.0"
 readme = "README.md"
 keywords = ["tui", "system-monitor", "telemetry", "macos", "linux"]
 categories = ["command-line-utilities", "visualization", "os::linux-apis", "os::macos-apis"]
@@ -21,6 +22,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "tempest-monitor"
 path = "src/main.rs"
+
 
 [features]
 default = ["full"]

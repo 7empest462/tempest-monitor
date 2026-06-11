@@ -19,7 +19,7 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 - 📊 **Real-time Overview**: Instant view of your system's health with custom themed layouts.
 - 🎨 **Dynamic Theme Presets**: Switch themes dynamically on-the-fly (`T`/`t` keys). Options include Dark, Light, Nord, Catppuccin, Dracula, Gruvbox, and Tokyo Night.
 - 💻 **CPU Monitoring**: Per-core history, frequency, and thermal mapping (absolute range-scaled logic).
-- 🧠 **Memory Tracking**: RAM and SWAP usage with detailed breakdowns. Includes **compressed memory** reporting for macOS.
+- 🧠 **Memory Tracking**: RAM and SWAP usage visualised via a detailed, customizable `htop`-style stacked bar (Active/Apps, Wired/Buffers, Cache, and Free) with a color-coded legend and compressed memory reporting on macOS.
 - 📂 **Disk I/O**: Live monitoring of disk read/write activities.
 - 🌐 **Network traffic**: History of received and transmitted data across all interfaces (MAC, Speed, Driver).
 - 💿 **Socket Connections**: Native high-performance socket listing (Protocols, Local/Remote IPs, Connection States).
@@ -38,7 +38,7 @@ A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built w
 
 ## 🔋 Battery & Hardware Monitoring
 
-- **Battery Status**: Shows percentage, state (Charging/Discharging), and time remaining.
+- **Battery Status**: Powered by the modern, maintained `starship-battery` crate (upgraded from the abandoned `battery` crate) to ensure robust cross-platform battery telemetry including percentage, charging state, and remaining duration.
 - **Thermal Sensors**: Monitors temperatures across various system components.
 - **GPU Monitoring**: Dedicated tab for GPU utilization, clock speeds, and power draw.
     - **macOS (Apple Silicon)**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required). Optimized for **M4** with support for **ANE Power**, **GPU Frequency (MHz)**, and **Unified Memory** utilization.
@@ -143,7 +143,7 @@ In addition to being a TUI application, `tempest-monitor` is also a reusable lib
 To use it, add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-tempest-monitor = "0.4.5"
+tempest-monitor = "0.4.7"
 ```
 
 ### Telemetry Capabilities:

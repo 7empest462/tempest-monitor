@@ -300,6 +300,7 @@ pub struct App {
     pub services: ServicesState,
     pub sockets: SocketsState,
     pub cpu_power: CpuPowerState,
+    pub mem_segments: crate::system_helper::MemorySegments,
     pub history: HistoryState,
 
     // Editor request (set by input, consumed by main loop)
@@ -452,6 +453,8 @@ impl App {
                 feedback: None,
                 available_modes: crate::power_mode::available_modes(),
             },
+
+            mem_segments: crate::system_helper::MemorySegments::default(),
 
             history: HistoryState {
                 snapshots: Vec::new(),
@@ -650,6 +653,9 @@ impl App {
                 Self::push_history(&mut self.per_core_history[i], cpu.cpu_usage() as u64);
             }
         }
+
+        // Memory segments
+        self.mem_segments = crate::system_helper::get_memory_segments(&self.sys);
 
         // Memory history
         let total_mem = self.sys.total_memory();
