@@ -84,7 +84,7 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(p, area);
 }
 
-fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
+fn render_gpu_sparkline(f: &mut Frame, #[allow(unused_variables)] app: &App, area: Rect) {
     #[cfg(windows)]
     let (data, current) = {
         let d = windows_gpu::history_tick_and_get(60);
@@ -577,7 +577,8 @@ mod windows_gpu {
                 let items_ptr = buffer.as_ptr() as *const PDH_FMT_COUNTERVALUE_ITEM_W;
                 let items = std::slice::from_raw_parts(items_ptr, item_count as usize);
 
-                let mut total = 0.0f64;
+                let mut sum_3d_like = 0.0f64;
+                let mut sum_all_engines = 0.0f64;
                 for item in items {
                     // Read instance name
                     let mut name = String::new();
@@ -588,19 +589,27 @@ mod windows_gpu {
                         name = String::from_utf16_lossy(slice);
                     }
 
-                    // Filter for 3D engines (common proxy for overall GPU load)
                     let name_lc = name.to_ascii_lowercase();
-                    let is_3d = name_lc.contains("engtype_3d");
-                    if !is_3d { continue; }
+                    let is_engine = name_lc.contains("engtype_");
 
                     // Read the double value
                     let val = item.FmtValue.Anonymous.doubleValue;
-                    if val.is_finite() && val >= 0.0 {
-                        total += val;
+                    if !val.is_finite() || val < 0.0 { continue; }
+
+                    if is_engine {
+                        sum_all_engines += val;
+                        // Include common engines users care about on integrated GPUs too
+                        if name_lc.contains("engtype_3d")
+                            || name_lc.contains("engtype_compute")
+                            || name_lc.contains("engtype_copy")
+                            || name_lc.contains("engtype_video") {
+                            sum_3d_like += val;
+                        }
                     }
                 }
 
-                // Clamp to a sane percentage range
+                // Prefer the subset of engines that represent user-visible workload.
+                let mut total = if sum_3d_like > 0.0 { sum_3d_like } else { sum_all_engines };
                 total = total.clamp(0.0, 100.0);
                 Some(total)
             }
