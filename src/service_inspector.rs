@@ -62,7 +62,7 @@ pub fn read_service_file(path: &str) -> Option<String> {
 /// **macOS**: parses `ProgramArguments` from the plist XML and looks for
 /// arguments that look like config file paths.
 /// **Linux**: parses `ExecStart=` and checks the command-line arguments.
-pub fn detect_config_file(service_file_contents: &str) -> Option<String> {
+pub fn detect_config_file(_service_file_contents: &str) -> Option<String> {
     // Common config file extensions (used on all platforms)
     let config_extensions = [
         ".conf", ".yaml", ".yml", ".json", ".toml",
@@ -82,7 +82,7 @@ pub fn detect_config_file(service_file_contents: &str) -> Option<String> {
             let mut in_array = false;
             let mut found_flag = false;
 
-            for line in service_file_contents.lines() {
+            for line in _service_file_contents.lines() {
                 let trimmed = line.trim();
                 if trimmed.contains("<key>ProgramArguments</key>") {
                     in_program_args = true;
@@ -116,7 +116,7 @@ pub fn detect_config_file(service_file_contents: &str) -> Option<String> {
             let config_flags = ["--config", "--conf", "-c", "-f", "--config-file", "--settings"];
 
             // Parse ExecStart= from the unit file
-            for line in service_file_contents.lines() {
+            for line in _service_file_contents.lines() {
                 let trimmed = line.trim();
                 if let Some(exec_line) = trimmed.strip_prefix("ExecStart=") {
                     let mut found_flag = false;
