@@ -30,10 +30,10 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
     let usage_str = {
         #[cfg(windows)]
         {
-            if app.gpu_usage >= 0.0 {
-                format!("{:.1}%", app.gpu_usage)
-            } else if let Some(u) = windows_gpu::gpu_utilization() {
+            if let Some(u) = windows_gpu::gpu_utilization() {
                 format!("{:.1}%", u)
+            } else if app.gpu_usage >= 0.0 {
+                format!("{:.1}%", app.gpu_usage)
             } else {
                 "N/A".to_string()
             }
@@ -85,16 +85,16 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
-    let data: Vec<u64> = app.gpu_history.iter().copied().collect();
-    let current = {
-        #[cfg(windows)]
-        {
-            if app.gpu_usage >= 0.0 { app.gpu_usage } else { windows_gpu::gpu_utilization().unwrap_or(0.0) }
-        }
-        #[cfg(not(windows))]
-        {
-            app.gpu_usage.max(0.0)
-        }
+    #[cfg(windows)]
+    let (data, current) = {
+        let d = windows_gpu::history_tick_and_get(60);
+        let c = d.last().copied().unwrap_or(0) as f64;
+        (d, c)
+    };
+
+    #[cfg(not(windows))]
+    let (data, current) = {
+        (app.gpu_history.iter().copied().collect::<Vec<u64>>(), app.gpu_usage.max(0.0))
     };
 
     let sparkline = Sparkline::default()
@@ -115,7 +115,7 @@ fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
     let current = {
         #[cfg(windows)]
         {
-            if app.gpu_usage >= 0.0 { app.gpu_usage } else { windows_gpu::gpu_utilization().unwrap_or(0.0) }
+            windows_gpu::gpu_utilization().unwrap_or_else(|| app.gpu_usage.max(0.0))
         }
         #[cfg(not(windows))]
         {
@@ -486,6 +486,21 @@ mod windows_gpu {
         PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
     };
 
+    // Simple per-thread history buffer for sparkline on Windows
+    thread_local! {
+        static GPU_HISTORY: RefCell<Vec<u64>> = RefCell::new(Vec::new());
+    }
+
+    pub fn history_tick_and_get(max_len: usize) -> Vec<u64> {
+        GPU_HISTORY.with(|cell| {
+            let mut v = cell.borrow_mut();
+            let sample = gpu_utilization().unwrap_or(0.0).clamp(0.0, 100.0).round() as u64;
+            v.push(sample);
+            if v.len() > max_len { let drop_n = v.len() - max_len; v.drain(0..drop_n); }
+            v.clone()
+        })
+    }
+
     struct PdhGpu {
         query: PDH_HQUERY,
         counter: PDH_HCOUNTER,
@@ -676,3 +691,4 @@ mod windows_gpu {
         })
     }
 }
+
