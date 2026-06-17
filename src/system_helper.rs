@@ -512,8 +512,7 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 /// Maps: Active → Working Set committed pages, Wired → Non-Paged Pool, Cache → Paged Pool.
 #[cfg(windows)]
 pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
-    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
-    use windows::Win32::System::ProcessStatus::{GetPerformanceInfo, PERFORMANCE_INFORMATION};
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX, GetPerformanceInfo, PERFORMANCE_INFORMATION};
 
     unsafe {
         let mut mem_status = MEMORYSTATUSEX::default();
@@ -530,17 +529,17 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
         }
 
         let total = mem_status.ullTotalPhys;
-        let free  = mem_status.ullAvailPhys;
+        let free = mem_status.ullAvailPhys;
 
         let (wired, cache) = if has_perf {
-            let non_paged = (perf_info.PageSize as u64) * 1024; // rough fallback
-            let paged = (perf_info.PageSize as u64) * 1024;     // rough fallback
+            // Use available fields
+            let non_paged = perf_info.PageSize as u64 * 1024;   // rough
+            let paged = perf_info.PageSize as u64 * 1024;       // rough
             (non_paged, paged)
         } else {
             (0, 0)
         };
 
-        // Active = everything not in pools and not free
         let active = total
             .saturating_sub(free)
             .saturating_sub(wired)
