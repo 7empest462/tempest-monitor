@@ -63,20 +63,21 @@ pub fn read_service_file(path: &str) -> Option<String> {
 /// arguments that look like config file paths.
 /// **Linux**: parses `ExecStart=` and checks the command-line arguments.
 pub fn detect_config_file(service_file_contents: &str) -> Option<String> {
-    // Common config file extensions
+    // Common config file extensions (used on all platforms)
     let config_extensions = [
         ".conf", ".yaml", ".yml", ".json", ".toml",
         ".cfg", ".ini", ".config", ".properties", ".xml",
     ];
-    // Common config-specifying flags
-    let config_flags = ["--config", "--conf", "-c", "-f", "--config-file", "--settings"];
 
+    #[allow(unused_mut)]
     let mut candidate_args: Vec<String> = Vec::new();
 
     cfg_select! {
         target_os = "macos" => {
+            // Common config-specifying flags (used only in platform arms)
+            let config_flags = ["--config", "--conf", "-c", "-f", "--config-file", "--settings"];
+
             // Parse ProgramArguments from plist XML
-            // Look for <key>ProgramArguments</key> followed by <array>...<string>args</string>...</array>
             let mut in_program_args = false;
             let mut in_array = false;
             let mut found_flag = false;
@@ -112,6 +113,8 @@ pub fn detect_config_file(service_file_contents: &str) -> Option<String> {
             }
         },
         target_os = "linux" => {
+            let config_flags = ["--config", "--conf", "-c", "-f", "--config-file", "--settings"];
+
             // Parse ExecStart= from the unit file
             for line in service_file_contents.lines() {
                 let trimmed = line.trim();

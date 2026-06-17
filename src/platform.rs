@@ -61,36 +61,35 @@ mod windows_impl {
         SignalInfo { name: "Terminate", number: 0 },
     ];
 
+    /// Check elevation via GetTokenInformation(TokenElevation).
+    /// This is the correct method on Vista+ and avoids the unstable PSID/BOOL type paths.
     pub fn is_running_as_admin() -> bool {
+        use windows::Win32::Foundation::{CloseHandle, HANDLE};
         use windows::Win32::Security::{
-            CheckTokenMembership, AllocateAndInitializeSid, FreeSid,
-            SECURITY_NT_AUTHORITY,
+            GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
         };
-        use windows::Win32::Foundation::BOOL;
-        use windows::core::PSID;
+        use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
         unsafe {
-            let nt_authority = windows::Win32::Security::SID_IDENTIFIER_AUTHORITY {
-                Value: SECURITY_NT_AUTHORITY.Value,
-            };
-            let mut admin_group: PSID = PSID::default();
-            let ok = AllocateAndInitializeSid(
-                &nt_authority,
-                2,   // two sub-authorities
-                32,  // SECURITY_BUILTIN_DOMAIN_RID
-                544, // DOMAIN_ALIAS_RID_ADMINS
-                0, 0, 0, 0, 0, 0,
-                &mut admin_group,
-            );
-            if ok.is_err() {
+            let mut token = HANDLE::default();
+            if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
                 return false;
             }
 
-            let mut is_member = BOOL::default();
-            let result = CheckTokenMembership(None, admin_group, &mut is_member);
-            let _ = FreeSid(admin_group);
+            let mut elevation = TOKEN_ELEVATION::default();
+            let size = std::mem::size_of::<TOKEN_ELEVATION>() as u32;
+            let mut returned = 0u32;
 
-            result.is_ok() && is_member.as_bool()
+            let ok = GetTokenInformation(
+                token,
+                TokenElevation,
+                Some(&mut elevation as *mut TOKEN_ELEVATION as *mut _),
+                size,
+                &mut returned,
+            );
+
+            let _ = CloseHandle(token);
+            ok.is_ok() && elevation.TokenIsElevated != 0
         }
     }
 

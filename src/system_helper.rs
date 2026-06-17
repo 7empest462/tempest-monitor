@@ -102,9 +102,7 @@ pub fn get_services() -> Vec<ServiceEntry> {
         OpenSCManagerW, EnumServicesStatusExW, CloseServiceHandle,
         SC_MANAGER_ENUMERATE_SERVICE, SERVICE_WIN32, SERVICE_STATE_ALL,
         SC_ENUM_PROCESS_INFO, ENUM_SERVICE_STATUS_PROCESSW,
-        SERVICE_ACTIVE, SERVICE_STOPPED,
     };
-    use windows::Win32::Foundation::ERROR_MORE_DATA;
     use windows::core::PCWSTR;
 
     let mut entries = Vec::new();

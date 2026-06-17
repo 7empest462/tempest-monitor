@@ -91,6 +91,7 @@ fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_power_and_details(f: &mut Frame, app: &App, area: Rect) {
+    #[allow(unused_variables)]
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
