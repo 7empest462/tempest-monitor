@@ -85,7 +85,7 @@ pnet = "0.35"
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = [
     "Win32_Foundation",
-    "Win32_System_Performance",              # GetPerformanceInfo
+    "Win32_System_Performance",              # PDH counters (GPU utilization via Task Manager path)
     "Win32_System_Threading",                # OpenProcess / TerminateProcess / GetCurrentProcess
     "Win32_System_Diagnostics_ToolHelp",     # Process snapshots
     "Win32_Security",                        # Token / elevation check
@@ -96,6 +96,8 @@ windows = { version = "0.62", features = [
     "Win32_System_SystemInformation",        # GlobalMemoryStatusEx
     "Win32_System_ProcessStatus",            # GetPerformanceInfo (paged/nonpaged pool)
     "Win32_System_Power",                    # POWER_INFORMATION_LEVEL / power plan support
+    "Win32_Graphics_Dxgi",                   # IDXGIFactory / IDXGIAdapter — GPU name + VRAM
+    "Win32_Graphics_Dxgi_Common",            # DXGI shared types
 ]}
 
 [target.'cfg(target_os = "linux")'.dependencies]

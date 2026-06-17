@@ -71,7 +71,25 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
         }
     };
 
-    let text = format!(" Model: {} │ GPU: {}{}{}{} ", app.gpu_model, usage_str, freq_str, pkg_str, vram_str);
+    let model_str = {
+        #[cfg(windows)]
+        {
+            let names = windows_gpu::gpu_adapter_names();
+            if names.is_empty() {
+                if app.gpu_model.is_empty() {
+                    "Unknown GPU".to_string()
+                } else {
+                    app.gpu_model.clone()
+                }
+            } else {
+                names.join(", ")
+            }
+        }
+        #[cfg(not(windows))]
+        { app.gpu_model.clone() }
+    };
+
+    let text = format!(" Model: {} │ GPU: {}{}{}{} ", model_str, usage_str, freq_str, pkg_str, vram_str);
     let p = Paragraph::new(text)
         .style(Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD))
         .block(
@@ -455,16 +473,45 @@ fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
 
     let mut final_items = items;
 
-    if app.gpu_usage < 0.0 {
-        final_items.push(ListItem::new(Span::styled(
-            " [sudo required for live stats]",
-            Style::default().fg(Color::Yellow),
-        )));
-    } else {
-        final_items.push(ListItem::new(Span::styled(
-            " ✓ Live metrics active",
-            Style::default().fg(Color::Rgb(166, 227, 161)),
-        )));
+    cfg_select! {
+        target_os = "windows" => {
+            // On Windows gpu_usage is always -1 (no NVML), use PDH instead.
+            let pdh_ok = windows_gpu::gpu_utilization().is_some();
+            if pdh_ok {
+                let adapters = windows_gpu::gpu_adapter_names();
+                if adapters.is_empty() {
+                    final_items.push(ListItem::new(Span::styled(
+                        " ✓ PDH metrics active (no discrete GPU detected)",
+                        Style::default().fg(Color::Rgb(166, 227, 161)),
+                    )));
+                } else {
+                    for adapter in &adapters {
+                        final_items.push(ListItem::new(Span::styled(
+                            format!(" ✓ {}", adapter),
+                            Style::default().fg(Color::Rgb(166, 227, 161)),
+                        )));
+                    }
+                }
+            } else {
+                final_items.push(ListItem::new(Span::styled(
+                    " ⚠ PDH not available — GPU counters unavailable",
+                    Style::default().fg(Color::Yellow),
+                )));
+            }
+        },
+        _ => {
+            if app.gpu_usage < 0.0 {
+                final_items.push(ListItem::new(Span::styled(
+                    " [sudo required for live stats]",
+                    Style::default().fg(Color::Yellow),
+                )));
+            } else {
+                final_items.push(ListItem::new(Span::styled(
+                    " ✓ Live metrics active",
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                )));
+            }
+        }
     }
 
     let list = List::new(final_items).block(
@@ -521,8 +568,8 @@ mod windows_gpu {
                         return None;
                     }
 
-                    // Use English counter path to avoid localization issues.
-                    let path: Vec<u16> = "\\\\GPU Engine(*)\\Utilization Percentage"
+                    // PDH local counter path — single leading backslash, no machine prefix.
+                    let path: Vec<u16> = "\\GPU Engine(*)\\Utilization Percentage"
                         .encode_utf16()
                         .chain(std::iter::once(0))
                         .collect();
@@ -635,11 +682,12 @@ mod windows_gpu {
                     let mut query = PDH_HQUERY::default();
                     if PdhOpenQueryW(None, 0, &mut query) != 0 { return None; }
 
-                    let path_usage: Vec<u16> = "\\\\GPU Adapter Memory(*)\\Dedicated Usage"
+                    // PDH local counter paths — single leading backslash.
+                    let path_usage: Vec<u16> = "\\GPU Adapter Memory(*)\\Dedicated Usage"
                         .encode_utf16()
                         .chain(std::iter::once(0))
                         .collect();
-                    let path_limit: Vec<u16> = "\\\\GPU Adapter Memory(*)\\Dedicated Limit"
+                    let path_limit: Vec<u16> = "\\GPU Adapter Memory(*)\\Dedicated Limit"
                         .encode_utf16()
                         .chain(std::iter::once(0))
                         .collect();
@@ -699,5 +747,40 @@ mod windows_gpu {
             }
         })
     }
-}
 
+    /// Enumerate GPU adapters via DXGI — returns display names with dedicated VRAM.
+    /// No elevation needed, no extra installs. Same API Direct3D games use.
+    pub fn gpu_adapter_names() -> Vec<String> {
+        use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1, DXGI_ADAPTER_DESC1};
+
+        let mut names = Vec::new();
+        unsafe {
+            let factory: IDXGIFactory1 = match CreateDXGIFactory1() {
+                Ok(f) => f,
+                Err(_) => return names,
+            };
+
+            let mut i = 0u32;
+            loop {
+                let adapter = match factory.EnumAdapters1(i) {
+                    Ok(a) => a,
+                    Err(_) => break, // No more adapters
+                };
+
+                let mut desc = DXGI_ADAPTER_DESC1::default();
+                if adapter.GetDesc1(&mut desc).is_ok() {
+                    // Description is [u16; 128] null-terminated
+                    let end = desc.Description.iter().position(|&c| c == 0).unwrap_or(128);
+                    let name = String::from_utf16_lossy(&desc.Description[..end]);
+                    let vram_mb = desc.DedicatedVideoMemory / (1024 * 1024);
+                    // Skip software adapters (WARP, Basic Render Driver, etc.)
+                    if vram_mb > 0 {
+                        names.push(format!("{} ({} MB VRAM)", name.trim(), vram_mb));
+                    }
+                }
+                i += 1;
+            }
+        }
+        names
+    }
+}
