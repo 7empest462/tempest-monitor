@@ -122,6 +122,19 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     ]);
 
     let ram_legend_line = ratatui::text::Line::from(cfg_select! {
+        target_os = "macos" => {
+            vec![
+                ratatui::text::Span::raw(" Legend: "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(0.0))),
+                ratatui::text::Span::raw(" App Memory   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::accent())),
+                ratatui::text::Span::raw(" Wired   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(50.0))),
+                ratatui::text::Span::raw(" Cached Files   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::fg_muted())),
+                ratatui::text::Span::raw(" Free"),
+            ]
+        },
         target_os = "windows" => {
             vec![
                 ratatui::text::Span::raw(" Legend: "),
@@ -141,7 +154,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(0.0))),
                 ratatui::text::Span::raw(" Apps   "),
                 ratatui::text::Span::styled("█", Style::default().fg(theme::accent())),
-                ratatui::text::Span::raw(" Wired/Buffers   "),
+                ratatui::text::Span::raw(" Buffers   "),
                 ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(50.0))),
                 ratatui::text::Span::raw(" Cache   "),
                 ratatui::text::Span::styled("█", Style::default().fg(theme::fg_muted())),

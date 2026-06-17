@@ -431,18 +431,46 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
             }
         }
 
-        let active_pages = stats.get("Pages active").copied().unwrap_or(0);
-        let wired_pages = stats.get("Pages wired down").copied().unwrap_or(0);
-        let inactive_pages = stats.get("Pages inactive").copied().unwrap_or(0);
-        let spec_pages = stats.get("Pages speculative").copied().unwrap_or(0);
-        let free_pages = stats.get("Pages free").copied().unwrap_or(0);
-        let comp_pages = stats.get("Pages occupied by compressor").copied().unwrap_or(0);
+        // --- Match Activity Monitor's memory model exactly ---
+        //
+        // Activity Monitor "Memory Used" = App Memory + Wired Memory + Compressed
+        //   App Memory   = internal_page_count - purgeable_count   (anonymous/app pages)
+        //   Wired Memory = wire_count                               (kernel-locked pages)
+        //   Compressed   = compressor_page_count                   (pages the compressor holds)
+        //
+        // Activity Monitor "Cached Files" = external_page_count    (file-backed, reclaimable)
+        //
+        // Activity Monitor "Free" = free_count + speculative_count
+        //   (speculative pages are reclaimed instantly on demand)
+        //
+        // Tempest mapping:
+        //   active (App bar, green)  → internal_pages - purgeable  (App Memory)
+        //   wired  (accent bar)      → wire_pages                  (Wired Memory)
+        //   cache  (yellow bar)      → external_pages              (Cached Files)
+        //   free   (remainder)       → free + speculative
+        //
+        // NOTE: compressed pages are added into active so the bar's "used"
+        //       total equals Activity Monitor's "Memory Used".
+
+        let internal_pages  = stats.get("Pages internal").copied().unwrap_or(0);
+        let external_pages  = stats.get("Pages external").copied().unwrap_or(0);
+        let purgeable_pages = stats.get("Pages purgeable").copied().unwrap_or(0);
+        let wired_pages     = stats.get("Pages wired down").copied().unwrap_or(0);
+        let free_pages      = stats.get("Pages free").copied().unwrap_or(0);
+        let spec_pages      = stats.get("Pages speculative").copied().unwrap_or(0);
+        let comp_pages      = stats.get("Pages occupied by compressor").copied().unwrap_or(0);
 
         let total = sys.total_memory();
-        let active = active_pages.saturating_add(comp_pages).saturating_mul(page_size);
-        let wired = wired_pages.saturating_mul(page_size);
-        let cache = inactive_pages.saturating_add(spec_pages).saturating_mul(page_size);
-        let free = free_pages.saturating_mul(page_size);
+
+        // App Memory = internal - purgeable + compressed  (matches Activity Monitor "Memory Used")
+        let app_pages = internal_pages
+            .saturating_sub(purgeable_pages)
+            .saturating_add(comp_pages);
+
+        let active = app_pages.saturating_mul(page_size);
+        let wired  = wired_pages.saturating_mul(page_size);
+        let cache  = external_pages.saturating_mul(page_size);   // Cached Files
+        let free   = free_pages.saturating_add(spec_pages).saturating_mul(page_size);
 
         Some(MemorySegments {
             total,
@@ -455,6 +483,7 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 
     try_parse().unwrap_or_else(|| get_fallback_segments(sys))
 }
+
 
 #[cfg(target_os = "linux")]
 pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
