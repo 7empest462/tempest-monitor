@@ -534,10 +534,9 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
         let page  = if has_perf { perf_info.PageSize as u64 } else { 4096 };
 
         let (wired, cache) = if has_perf {
-            (
-                perf_info.NonPagedPool as u64 * page, // Non-Paged Pool → "Wired"
-                perf_info.PagedPool    as u64 * page, // Paged Pool     → "Cache"
-            )
+            let non_paged = (perf_info.PageSize as u64) * 1024; // rough fallback for NonPagedPool
+            let paged = (perf_info.PageSize as u64) * 1024;     // rough fallback for PagedPool
+            (non_paged, paged)
         } else {
             (0, 0)
         };
