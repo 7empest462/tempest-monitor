@@ -512,7 +512,8 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 /// Maps: Active → Working Set committed pages, Wired → Non-Paged Pool, Cache → Paged Pool.
 #[cfg(windows)]
 pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
-    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX, GetPerformanceInfo, PERFORMANCE_INFORMATION};
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    use windows::Win32::System::ProcessStatus::{GetPerformanceInfo, PERFORMANCE_INFORMATION};
 
     unsafe {
         let mut mem_status = MEMORYSTATUSEX::default();
@@ -528,22 +529,24 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
             return MemorySegments::default();
         }
 
-        let total = mem_status.ullTotalPhys;
-        let free = mem_status.ullAvailPhys;
+        let total = mem_status.ullTotalPhys as u64;
+        let free = mem_status.ullAvailPhys as u64;
 
+        // Derive non-paged (wired) and paged (cache) pool sizes from PERFORMANCE_INFORMATION.
         let (wired, cache) = if has_perf {
-            // Use available fields
-            let non_paged = perf_info.PageSize as u64 * 1024;   // rough
-            let paged = perf_info.PageSize as u64 * 1024;       // rough
-            (non_paged, paged)
+            let page_size = perf_info.PageSize as u64;
+            let non_paged_bytes = (perf_info.KernelNonpaged as u64).saturating_mul(page_size);
+            let paged_bytes = (perf_info.KernelPaged as u64).saturating_mul(page_size);
+            (non_paged_bytes, paged_bytes)
         } else {
             (0, 0)
         };
 
-        let active = total
+        let mut active = total
             .saturating_sub(free)
             .saturating_sub(wired)
             .saturating_sub(cache);
+        if active > total { active = total; }
 
         MemorySegments { total, active, wired, cache, free }
     }
@@ -554,3 +557,4 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
 pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
     get_fallback_segments(sys)
 }
+

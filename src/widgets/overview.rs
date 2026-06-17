@@ -49,6 +49,7 @@ fn render_system_bar(f: &mut Frame, #[allow(unused_variables)] app: &App, area: 
     let hours = uptime_secs / 3600;
     let mins = (uptime_secs % 3600) / 60;
 
+    #[cfg(not(windows))]
     let load = System::load_average();
     
     let is_root = crate::platform::is_running_as_admin();
@@ -480,3 +481,4 @@ pub fn format_bytes_rate(bytes: u64) -> String {
         format!("{bytes} B/s")
     }
 }
+
