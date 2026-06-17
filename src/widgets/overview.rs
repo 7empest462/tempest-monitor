@@ -74,7 +74,6 @@ fn render_system_bar(f: &mut Frame, #[allow(unused_variables)] app: &App, area: 
         },
         cfg_select! {
             target_os = "windows" => {
-                // Windows has no load average — show overall CPU% instead
                 Span::styled(
                     format!("{:.1}%", app.sys.global_cpu_usage()),
                     Style::default().fg(theme::usage_color(app.sys.global_cpu_usage() as f64)),
