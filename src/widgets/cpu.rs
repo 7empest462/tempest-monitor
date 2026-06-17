@@ -240,7 +240,15 @@ fn render_temperatures(f: &mut Frame, app: &App, area: Rect) {
 
     let count = sensors.len();
     if count == 0 {
-        let empty = Paragraph::new(" No temperature sensors detected ")
+        let msg = cfg_select! {
+            target_os = "windows" => {
+                " No thermal sensors found.\n Tip: Run OpenHardwareMonitor or HWiNFO as a service to expose WMI sensors."
+            },
+            _ => {
+                " No temperature sensors detected"
+            }
+        };
+        let empty = Paragraph::new(msg)
             .block(
                 Block::default()
                     .title(" Temperature Sensors (0) ")

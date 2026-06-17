@@ -508,8 +508,52 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
     try_parse().unwrap_or_else(|| get_fallback_segments(sys))
 }
 
-/// Windows + fallback: Use sysinfo for memory breakdown.
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// Windows: Use GlobalMemoryStatusEx for physical totals + GetPerformanceInfo for pool breakdown.
+/// Maps: Active → Working Set committed pages, Wired → Non-Paged Pool, Cache → Paged Pool.
+#[cfg(windows)]
+pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    use windows::Win32::System::ProcessStatus::{GetPerformanceInfo, PERFORMANCE_INFORMATION};
+
+    unsafe {
+        let mut mem_status = MEMORYSTATUSEX::default();
+        mem_status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+
+        let mut perf_info = PERFORMANCE_INFORMATION::default();
+        perf_info.cb = std::mem::size_of::<PERFORMANCE_INFORMATION>() as u32;
+
+        let has_mem = GlobalMemoryStatusEx(&mut mem_status).is_ok();
+        let has_perf = GetPerformanceInfo(&mut perf_info, perf_info.cb).is_ok();
+
+        if !has_mem {
+            return MemorySegments::default();
+        }
+
+        let total = mem_status.ullTotalPhys;
+        let free  = mem_status.ullAvailPhys;
+        let page  = if has_perf { perf_info.PageSize as u64 } else { 4096 };
+
+        let (wired, cache) = if has_perf {
+            (
+                perf_info.NonPagedPool as u64 * page, // Non-Paged Pool → "Wired"
+                perf_info.PagedPool    as u64 * page, // Paged Pool     → "Cache"
+            )
+        } else {
+            (0, 0)
+        };
+
+        // Active = everything not in pools and not free
+        let active = total
+            .saturating_sub(free)
+            .saturating_sub(wired)
+            .saturating_sub(cache);
+
+        MemorySegments { total, active, wired, cache, free }
+    }
+}
+
+/// Fallback for any other exotic target.
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
     get_fallback_segments(sys)
 }

@@ -42,7 +42,6 @@ pub fn available_modes() -> Vec<CpuPowerMode> {
             vec![CpuPowerMode::LowPower, CpuPowerMode::Normal]
         },
         target_os = "linux" => {
-            // Check what governors are available
             let available = std::fs::read_to_string(
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
             ).unwrap_or_default();
@@ -61,6 +60,10 @@ pub fn available_modes() -> Vec<CpuPowerMode> {
                 modes.push(CpuPowerMode::Unknown);
             }
             modes
+        },
+        target_os = "windows" => {
+            // Windows always offers these three; Ultimate Performance may not be present on Home
+            vec![CpuPowerMode::LowPower, CpuPowerMode::Balanced, CpuPowerMode::Performance]
         },
         _ => {
             vec![CpuPowerMode::Unknown]
@@ -106,7 +109,27 @@ pub fn detect_power_mode() -> CpuPowerMode {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// Windows: parse `powercfg /getactivescheme` to detect current power plan.
+#[cfg(windows)]
+pub fn detect_power_mode() -> CpuPowerMode {
+    if let Ok(output) = std::process::Command::new("powercfg")
+        .args(["/getactivescheme"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout).to_lowercase();
+        // Match well-known GUID names embedded in the output
+        if stdout.contains("power saver") || stdout.contains("powersaver") {
+            return CpuPowerMode::LowPower;
+        } else if stdout.contains("high performance") || stdout.contains("ultimate performance") {
+            return CpuPowerMode::Performance;
+        } else if stdout.contains("balanced") {
+            return CpuPowerMode::Balanced;
+        }
+    }
+    CpuPowerMode::Unknown
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 pub fn detect_power_mode() -> CpuPowerMode {
     CpuPowerMode::Unknown
 }
@@ -202,7 +225,29 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// Windows: switch power plans via `powercfg /setactive <GUID>`.
+/// Requires admin for some plans; non-admin may work for Balanced/Power Saver.
+#[cfg(windows)]
+pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
+    // Well-known Windows power plan GUIDs
+    let guid = match mode {
+        CpuPowerMode::LowPower    => "a1841308-3541-4fab-bc81-f71556f20b4a", // Power Saver
+        CpuPowerMode::Balanced    => "381b4222-f694-41f0-9685-ff5bb260df2e", // Balanced
+        CpuPowerMode::Performance => "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", // High Performance
+        _ => return Err(format!("Mode '{}' not supported on Windows", mode.label())),
+    };
+
+    match std::process::Command::new("powercfg")
+        .args(["/setactive", guid])
+        .status()
+    {
+        Ok(s) if s.success() => Ok(format!("✓ Switched to {} ({})", mode.label(), guid)),
+        Ok(s) => Err(format!("✗ powercfg exited with code {}", s.code().unwrap_or(-1))),
+        Err(e) => Err(format!("✗ Failed to run powercfg: {}", e)),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 pub fn set_power_mode(_mode: CpuPowerMode) -> Result<String, String> {
     Err("CPU performance mode control not supported on this platform".into())
 }
@@ -222,6 +267,22 @@ pub fn get_mode_detail() -> String {
             std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
                 .map(|s| s.trim().to_string())
                 .unwrap_or_else(|_| "unavailable".into())
+        },
+        target_os = "windows" => {
+            // Parse current scheme name from powercfg output
+            if let Ok(output) = std::process::Command::new("powercfg")
+                .args(["/getactivescheme"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                // Output looks like: "Power Scheme GUID: <guid>  (<name>)"
+                if let Some(start) = stdout.find('(') {
+                    if let Some(end) = stdout.rfind(')') {
+                        return stdout[start + 1..end].trim().to_string();
+                    }
+                }
+            }
+            "unknown".into()
         },
         _ => {
             "unsupported platform".into()

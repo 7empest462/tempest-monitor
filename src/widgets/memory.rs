@@ -121,17 +121,34 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ))
     ]);
 
-    let ram_legend_line = ratatui::text::Line::from(vec![
-        ratatui::text::Span::raw(" Legend: "),
-        ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(0.0))),
-        ratatui::text::Span::raw(" Apps   "),
-        ratatui::text::Span::styled("█", Style::default().fg(theme::accent())),
-        ratatui::text::Span::raw(" Wired/Buffers   "),
-        ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(50.0))),
-        ratatui::text::Span::raw(" Cache   "),
-        ratatui::text::Span::styled("█", Style::default().fg(theme::fg_muted())),
-        ratatui::text::Span::raw(" Free"),
-    ]);
+    let ram_legend_line = ratatui::text::Line::from(cfg_select! {
+        target_os = "windows" => {
+            vec![
+                ratatui::text::Span::raw(" Legend: "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(0.0))),
+                ratatui::text::Span::raw(" Working Set   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::accent())),
+                ratatui::text::Span::raw(" Non-Paged Pool   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(50.0))),
+                ratatui::text::Span::raw(" Paged Pool   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::fg_muted())),
+                ratatui::text::Span::raw(" Free"),
+            ]
+        },
+        _ => {
+            vec![
+                ratatui::text::Span::raw(" Legend: "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(0.0))),
+                ratatui::text::Span::raw(" Apps   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::accent())),
+                ratatui::text::Span::raw(" Wired/Buffers   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::usage_color(50.0))),
+                ratatui::text::Span::raw(" Cache   "),
+                ratatui::text::Span::styled("█", Style::default().fg(theme::fg_muted())),
+                ratatui::text::Span::raw(" Free"),
+            ]
+        }
+    });
 
     let ram_paragraph = ratatui::widgets::Paragraph::new(vec![
         ratatui::text::Line::from(ram_spans),

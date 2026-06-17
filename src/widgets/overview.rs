@@ -40,7 +40,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     render_sensors_battery(f, app, main[5]);
 }
 
-fn render_system_bar(f: &mut Frame, _app: &App, area: Rect) {
+fn render_system_bar(f: &mut Frame, #[allow(unused_variables)] app: &App, area: Rect) {
     let hostname = System::host_name().unwrap_or_else(|| "unknown".into());
     let os_name = System::long_os_version().unwrap_or_else(|| "unknown".into());
     let kernel = System::kernel_version().unwrap_or_else(|| "unknown".into());
@@ -64,8 +64,29 @@ fn render_system_bar(f: &mut Frame, _app: &App, area: Rect) {
         Span::styled("Uptime: ", Style::default().fg(theme::fg_muted())),
         Span::styled(format!("{}h {:02}m ", hours, mins), Style::default().fg(theme::accent2())),
         Span::styled("│ ", Style::default().fg(theme::fg_muted())),
-        Span::styled("Load: ", Style::default().fg(theme::fg_muted())),
-        Span::styled(format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen), Style::default().fg(theme::usage_color(load.five * 10.0))),
+        cfg_select! {
+            target_os = "windows" => {
+                Span::styled("CPU: ", Style::default().fg(theme::fg_muted()))
+            },
+            _ => {
+                Span::styled("Load: ", Style::default().fg(theme::fg_muted()))
+            }
+        },
+        cfg_select! {
+            target_os = "windows" => {
+                // Windows has no load average — show overall CPU% instead
+                Span::styled(
+                    format!("{:.1}%", app.sys.global_cpu_usage()),
+                    Style::default().fg(theme::usage_color(app.sys.global_cpu_usage() as f64)),
+                )
+            },
+            _ => {
+                Span::styled(
+                    format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen),
+                    Style::default().fg(theme::usage_color(load.five * 10.0)),
+                )
+            }
+        },
     ];
 
     if is_root {
