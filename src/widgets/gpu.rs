@@ -751,7 +751,7 @@ mod windows_gpu {
     /// Enumerate GPU adapters via DXGI — returns display names with dedicated VRAM.
     /// No elevation needed, no extra installs. Same API Direct3D games use.
     pub fn gpu_adapter_names() -> Vec<String> {
-        use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1, DXGI_ADAPTER_DESC1};
+        use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
 
         let mut names = Vec::new();
         unsafe {
@@ -767,8 +767,8 @@ mod windows_gpu {
                     Err(_) => break, // No more adapters
                 };
 
-                let mut desc = DXGI_ADAPTER_DESC1::default();
-                if adapter.GetDesc1(&mut desc).is_ok() {
+                // In windows 0.62, GetDesc1() takes no arguments and returns Result<DXGI_ADAPTER_DESC1>
+                if let Ok(desc) = adapter.GetDesc1() {
                     // Description is [u16; 128] null-terminated
                     let end = desc.Description.iter().position(|&c| c == 0).unwrap_or(128);
                     let name = String::from_utf16_lossy(&desc.Description[..end]);
