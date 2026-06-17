@@ -27,10 +27,25 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
-    let usage_str = if app.gpu_usage >= 0.0 {
-        format!("{:.1}%", app.gpu_usage)
-    } else {
-        "N/A (run with sudo)".to_string()
+    let usage_str = {
+        #[cfg(windows)]
+        {
+            if app.gpu_usage >= 0.0 {
+                format!("{:.1}%", app.gpu_usage)
+            } else if let Some(u) = windows_gpu::gpu_utilization() {
+                format!("{:.1}%", u)
+            } else {
+                "N/A".to_string()
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            if app.gpu_usage >= 0.0 {
+                format!("{:.1}%", app.gpu_usage)
+            } else {
+                "N/A (run with sudo)".to_string()
+            }
+        }
     };
 
     let freq_str = app.gpu_freq_mhz
@@ -41,7 +56,22 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
         .map(|mw| format!(" │ Pkg Power: {:.2} W", mw / 1000.0))
         .unwrap_or_default();
 
-    let text = format!(" Model: {} │ GPU: {}{}{} ", app.gpu_model, usage_str, freq_str, pkg_str);
+    let vram_str = {
+        #[cfg(windows)]
+        {
+            if let Some((used_mb, limit_mb, pct)) = windows_gpu::vram_usage_mb() {
+                format!(" │ VRAM: {:.0}/{:.0} MB ({:.1}%)", used_mb, limit_mb, pct)
+            } else {
+                String::new()
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            String::new()
+        }
+    };
+
+    let text = format!(" Model: {} │ GPU: {}{}{}{} ", app.gpu_model, usage_str, freq_str, pkg_str, vram_str);
     let p = Paragraph::new(text)
         .style(Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD))
         .block(
@@ -56,7 +86,16 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
     let data: Vec<u64> = app.gpu_history.iter().copied().collect();
-    let current = app.gpu_usage.max(0.0);
+    let current = {
+        #[cfg(windows)]
+        {
+            if app.gpu_usage >= 0.0 { app.gpu_usage } else { windows_gpu::gpu_utilization().unwrap_or(0.0) }
+        }
+        #[cfg(not(windows))]
+        {
+            app.gpu_usage.max(0.0)
+        }
+    };
 
     let sparkline = Sparkline::default()
         .block(
@@ -73,7 +112,16 @@ fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
-    let current = app.gpu_usage.max(0.0);
+    let current = {
+        #[cfg(windows)]
+        {
+            if app.gpu_usage >= 0.0 { app.gpu_usage } else { windows_gpu::gpu_utilization().unwrap_or(0.0) }
+        }
+        #[cfg(not(windows))]
+        {
+            app.gpu_usage.max(0.0)
+        }
+    };
     let ratio = (current / 100.0).clamp(0.0, 1.0);
 
     let gauge = Gauge::default()
@@ -427,4 +475,206 @@ fn render_hw_details(f: &mut Frame, app: &App, area: Rect) {
             .border_style(theme::style_border()),
     );
     f.render_widget(list, area);
+}
+
+#[cfg(windows)]
+mod windows_gpu {
+    use std::sync::OnceLock;
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Performance::{
+        PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
+        PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+    };
+
+    struct PdhGpu {
+        query: PDH_HQUERY,
+        counter: PDH_HCOUNTER,
+    }
+
+    static HANDLES: OnceLock<Option<PdhGpu>> = OnceLock::new();
+
+    fn get_handles() -> Option<&'static PdhGpu> {
+        HANDLES
+            .get_or_init(|| unsafe {
+                let mut query = PDH_HQUERY::default();
+                let status = PdhOpenQueryW(None, 0, &mut query);
+                if status != 0 {
+                    return None;
+                }
+
+                // Use English counter path to avoid localization issues.
+                let path: Vec<u16> = "\\\\GPU Engine(*)\\Utilization Percentage"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+
+                let mut counter = PDH_HCOUNTER::default();
+                let status = PdhAddEnglishCounterW(query, PCWSTR(path.as_ptr()), 0, &mut counter);
+                if status != 0 {
+                    return None;
+                }
+
+                // Prime the query once.
+                let _ = PdhCollectQueryData(query);
+
+                Some(PdhGpu { query, counter })
+            })
+            .as_ref()
+    }
+
+    pub fn gpu_utilization() -> Option<f64> {
+        unsafe {
+            let h = get_handles()?;
+
+            // Collect a new sample
+            if PdhCollectQueryData(h.query) != 0 {
+                return None;
+            }
+
+            // First call to get required buffer size and item count
+            let mut buf_size: u32 = 0;
+            let mut item_count: u32 = 0;
+            let mut status = PdhGetFormattedCounterArrayW(
+                h.counter,
+                PDH_FMT_DOUBLE,
+                &mut buf_size,
+                &mut item_count,
+                None,
+            );
+
+            if status != 0 && buf_size == 0 {
+                return None;
+            }
+
+            // Allocate the buffer and fetch the array
+            let mut buffer: Vec<u8> = vec![0u8; buf_size as usize];
+            status = PdhGetFormattedCounterArrayW(
+                h.counter,
+                PDH_FMT_DOUBLE,
+                &mut buf_size,
+                &mut item_count,
+                Some(buffer.as_mut_ptr() as *mut PDH_FMT_COUNTERVALUE_ITEM_W),
+            );
+            if status != 0 {
+                return None;
+            }
+
+            // Interpret the buffer as an array of PDH_FMT_COUNTERVALUE_ITEM_W
+            let items_ptr = buffer.as_ptr() as *const PDH_FMT_COUNTERVALUE_ITEM_W;
+            let items = std::slice::from_raw_parts(items_ptr, item_count as usize);
+
+            let mut total = 0.0f64;
+            for item in items {
+                // Read instance name
+                let mut name = String::new();
+                if !item.szName.0.is_null() {
+                    let mut len = 0usize;
+                    while *item.szName.0.add(len) != 0 { len += 1; }
+                    let slice = std::slice::from_raw_parts(item.szName.0, len);
+                    name = String::from_utf16_lossy(slice);
+                }
+
+                // Filter for 3D engines (common proxy for overall GPU load)
+                let name_lc = name.to_ascii_lowercase();
+                let is_3d = name_lc.contains("engtype_3d");
+                if !is_3d { continue; }
+
+                // Read the double value
+                let val = item.FmtValue.Anonymous.doubleValue;
+                if val.is_finite() && val >= 0.0 {
+                    total += val;
+                }
+            }
+
+            // Clamp to a sane percentage range
+            total = total.clamp(0.0, 100.0);
+            Some(total)
+        }
+    }
+
+    // PDH-based VRAM usage (Dedicated Usage / Dedicated Limit) in MB
+    struct PdhMem {
+        query: PDH_HQUERY,
+        usage: PDH_HCOUNTER,
+        limit: PDH_HCOUNTER,
+    }
+
+    static MEM_HANDLES: OnceLock<Option<PdhMem>> = OnceLock::new();
+
+    fn get_mem_handles() -> Option<&'static PdhMem> {
+        MEM_HANDLES
+            .get_or_init(|| unsafe {
+                let mut query = PDH_HQUERY::default();
+                let status = PdhOpenQueryW(None, 0, &mut query);
+                if status != 0 { return None; }
+
+                let path_usage: Vec<u16> = "\\\\GPU Adapter Memory(*)\\Dedicated Usage"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let path_limit: Vec<u16> = "\\\\GPU Adapter Memory(*)\\Dedicated Limit"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+
+                let mut usage = PDH_HCOUNTER::default();
+                let mut limit = PDH_HCOUNTER::default();
+                if PdhAddEnglishCounterW(query, PCWSTR(path_usage.as_ptr()), 0, &mut usage) != 0 { return None; }
+                if PdhAddEnglishCounterW(query, PCWSTR(path_limit.as_ptr()), 0, &mut limit) != 0 { return None; }
+
+                // Prime once
+                let _ = PdhCollectQueryData(query);
+
+                Some(PdhMem { query, usage, limit })
+            })
+            .as_ref()
+    }
+
+    pub fn vram_usage_mb() -> Option<(f64, f64, f64)> {
+        unsafe {
+            let h = get_mem_handles()?;
+
+            // Collect a fresh sample
+            if PdhCollectQueryData(h.query) != 0 { return None; }
+
+            // Helper to read an array counter and sum values
+            fn sum_counter(counter: PDH_HCOUNTER) -> Option<f64> {
+                unsafe {
+                    let mut buf_size: u32 = 0;
+                    let mut item_count: u32 = 0;
+                    let mut status = PdhGetFormattedCounterArrayW(
+                        counter,
+                        PDH_FMT_DOUBLE,
+                        &mut buf_size,
+                        &mut item_count,
+                        None,
+                    );
+                    if status != 0 && buf_size == 0 { return None; }
+                    let mut buffer: Vec<u8> = vec![0u8; buf_size as usize];
+                    status = PdhGetFormattedCounterArrayW(
+                        counter,
+                        PDH_FMT_DOUBLE,
+                        &mut buf_size,
+                        &mut item_count,
+                        Some(buffer.as_mut_ptr() as *mut PDH_FMT_COUNTERVALUE_ITEM_W),
+                    );
+                    if status != 0 { return None; }
+                    let items_ptr = buffer.as_ptr() as *const PDH_FMT_COUNTERVALUE_ITEM_W;
+                    let items = std::slice::from_raw_parts(items_ptr, item_count as usize);
+                    let mut sum = 0.0f64;
+                    for item in items {
+                        let v = item.FmtValue.Anonymous.doubleValue;
+                        if v.is_finite() && v >= 0.0 { sum += v; }
+                    }
+                    Some(sum)
+                }
+            }
+
+            let used_mb = sum_counter(h.usage)?;
+            let limit_mb = sum_counter(h.limit)?;
+            if limit_mb <= 0.0 { return None; }
+            let pct = (used_mb / limit_mb * 100.0).clamp(0.0, 100.0);
+            Some((used_mb, limit_mb, pct))
+        }
+    }
 }
