@@ -2,7 +2,7 @@
 name = "tempest-monitor"
 version = "0.4.7"
 authors = ["7empest462"]
-description = "A stunning, real-time terminal system monitor (TUI) for macOS and Linux, with a library for hardware telemetry."
+description = "A stunning, real-time terminal system monitor (TUI) for macOS, Linux, and Windows, with a library for hardware telemetry."
 repository = "https://github.com/7empest462/tempest-monitor"
 homepage = "https://github.com/7empest462/tempest-monitor"
 documentation = "https://docs.rs/tempest-monitor"
@@ -10,7 +10,7 @@ license-file = "LICENSE"
 license = "BSL-1.0"
 readme = "README.md"
 keywords = ["tui", "system-monitor", "telemetry", "macos", "linux"]
-categories = ["command-line-utilities", "visualization", "os::linux-apis", "os::macos-apis"]
+categories = ["command-line-utilities", "visualization", "os::linux-apis", "os::macos-apis", "os::windows-apis"]
 edition = "2024"
 default-run = "tempest-monitor"
 exclude = ["README_assets/*", ".github/*"]
@@ -39,7 +39,7 @@ sysinfo = "0.39.3"
 starship-battery = "0.11.0"
 unicode-width = "0.2.2"
 chrono = "0.4.45"
-libc = "0.2.186"
+# libc moved to [target.'cfg(unix)'.dependencies]
 regex = "1.12.3"
 dirs = "6"
 
@@ -54,11 +54,10 @@ dashmap = "6.2.1"
 futures = "0.3.32"
 
 # ── Phase 9: Enhanced Process & Sockets ───────────────────────────────────────
-netstat2 = "0.11.2"
+# netstat2 moved to [target.'cfg(unix)'.dependencies]
 ratatui-textarea = { version = "0.9.1", features = ["crossterm"] }
 
-# ── Phase 10: Network Intelligence ───────────────────────────────────────────
-pnet = "0.35"
+# pnet moved to [target.'cfg(unix)'.dependencies]
 
 # ── Phase 12: Persistence ────────────────────────────────────────────────────
 tokio = { version = "1.52.3", features = ["full"] }
@@ -79,6 +78,22 @@ serde_json = "1.0.150"
 plotters = { version = "0.3.7", optional = true }
 
 # ── Platform-specific ────────────────────────────────────────────────────────
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.186"
+netstat2 = "0.11.2"
+pnet = "0.35"
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",                # OpenProcess / TerminateProcess
+    "Win32_System_Diagnostics_ToolHelp",     # Process snapshots
+    "Win32_Security",                        # Token / elevation check
+    "Win32_System_SystemServices",           # General system info
+    "Win32_NetworkManagement_IpHelper",      # GetExtendedTcpTable / GetAdaptersAddresses
+    "Win32_Networking_WinSock",              # SOCKADDR types
+    "Win32_System_Services",                 # OpenSCManager / EnumServicesStatusEx
+]}
+
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = "0.18"
 nvml-wrapper = "0.12.1"

@@ -8,6 +8,7 @@ pub mod macos_helper;
 #[cfg(target_os = "linux")]
 pub mod linux_helper;
 pub mod system_helper;
+pub mod platform;
 pub mod telemetry_core;
 pub mod process_helper;
 

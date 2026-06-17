@@ -342,7 +342,7 @@ pub fn run_service_action(app: &mut App, action: &str) {
         #[cfg(target_os = "macos")]
         let result = {
             if action == "restart" {
-                let uid = unsafe { libc::getuid() };
+                let uid = crate::platform::get_current_uid();
                 std::process::Command::new("launchctl")
                     .args(["kickstart", "-k", &format!("gui/{}/{}", uid, label)])
                     .status()

@@ -127,23 +127,14 @@ pub enum ServiceInspectorMode {
     Logs,   // Show service logs
 }
 
-// ── Signals ──────────────────────────────────────────────────────────────────
+// ── Signals (re-exported from platform abstraction layer) ────────────────────
 
-#[derive(Copy, Clone)]
-pub struct SignalInfo {
-    pub name: &'static str,
-    pub number: i32,
+pub use crate::platform::SignalInfo;
+
+/// Returns the platform-specific signal list.
+pub fn signals() -> &'static [SignalInfo] {
+    crate::platform::get_signals()
 }
-
-pub const SIGNALS: [SignalInfo; 7] = [
-    SignalInfo { name: "SIGTERM", number: libc::SIGTERM },
-    SignalInfo { name: "SIGKILL", number: libc::SIGKILL },
-    SignalInfo { name: "SIGSTOP", number: libc::SIGSTOP },
-    SignalInfo { name: "SIGCONT", number: libc::SIGCONT },
-    SignalInfo { name: "SIGHUP",  number: libc::SIGHUP },
-    SignalInfo { name: "SIGUSR1", number: libc::SIGUSR1 },
-    SignalInfo { name: "SIGUSR2", number: libc::SIGUSR2 },
-];
 
 // ── Battery snapshot ─────────────────────────────────────────────────────────
 
@@ -584,7 +575,7 @@ impl App {
         self.networks.refresh(true);
         self.components.refresh(true);
 
-        // Network enrichment (pnet)
+        // Network enrichment (platform-specific interface details)
         #[cfg(target_os = "linux")]
         {
             for interface in pnet::datalink::interfaces() {
@@ -627,14 +618,17 @@ impl App {
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         {
-            for interface in pnet::datalink::interfaces() {
-                self.network_info.insert(interface.name.clone(), NetworkInterfaceInfo {
-                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
-                    mtu: 0,
-                    speed: None,
-                    duplex: None,
-                    driver: None,
-                });
+            // Windows / other: use sysinfo Networks for basic interface info
+            for (name, _data) in self.networks.iter() {
+                if !self.network_info.contains_key(name) {
+                    self.network_info.insert(name.to_string(), NetworkInterfaceInfo {
+                        mac: "N/A".into(),
+                        mtu: 0,
+                        speed: None,
+                        duplex: None,
+                        driver: None,
+                    });
+                }
             }
         }
 

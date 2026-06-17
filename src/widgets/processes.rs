@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Row, Table, Paragraph, Clear},
     Frame,
 };
-use crate::app::{App, SortMode, SortDirection, ProcessViewMode, SIGNALS};
+use crate::app::{App, SortMode, SortDirection, ProcessViewMode};
 use crate::theme;
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
@@ -178,7 +178,7 @@ fn render_signal_menu(f: &mut Frame, area: Rect, selected: usize) {
     let menu_area = centered_rect(30, 40, area);
     f.render_widget(Clear, menu_area);
 
-    let items: Vec<ratatui::widgets::ListItem> = SIGNALS.iter().enumerate().map(|(i, sig)| {
+    let items: Vec<ratatui::widgets::ListItem> = crate::platform::get_signals().iter().enumerate().map(|(i, sig)| {
         let style = if i == selected {
             theme::style_selected()
         } else {

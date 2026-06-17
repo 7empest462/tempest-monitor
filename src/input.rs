@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{ActiveTab, App, ProcessViewMode, ServiceInspectorMode, SortDirection, SortMode, SIGNALS};
+use crate::app::{ActiveTab, App, ProcessViewMode, ServiceInspectorMode, SortDirection, SortMode};
 use crate::power_mode::CpuPowerMode;
 
 pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
@@ -350,7 +350,7 @@ fn handle_signal_menu_key(key: KeyEvent, app: &mut App) -> bool {
             app.processes.selected_signal = app.processes.selected_signal.saturating_sub(1);
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            if app.processes.selected_signal + 1 < SIGNALS.len() {
+            if app.processes.selected_signal + 1 < crate::platform::get_signals().len() {
                 app.processes.selected_signal += 1;
             }
         }
@@ -398,11 +398,8 @@ fn send_signal_to_selected(app: &mut App) {
     }
 
     let pid = processes[app.processes.selected].pid();
-    let sig = SIGNALS[app.processes.selected_signal].number;
 
-    unsafe {
-        libc::kill(pid.as_u32() as i32, sig);
-    }
+    crate::platform::kill_process(pid, app.processes.selected_signal);
 }
 
 fn handle_inspector_key(key: KeyEvent, app: &mut App) -> bool {

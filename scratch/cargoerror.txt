@@ -1,0 +1,121 @@
+C:\Users\alann\tempest-monitor> cargo check
+warning: only one of `license` or `license-file` is necessary
+`license` should be used if the package license can be expressed with a standard SPDX expression.
+`license-file` should be used if the package uses a non-standard license. 
+See https://doc.rust-lang.org/cargo/reference/manifest.html#the-license-and-license-file-fields for more information.
+    Checking tempest-monitor v0.4.7 (C:\Users\alann\tempest-monitor)
+error[E0425]: cannot find value `SIGKILL` in crate `libc`
+   --> src\app.rs:140:49
+    |
+140 |     SignalInfo { name: "SIGKILL", number: libc::SIGKILL },
+    |                                                 ^^^^^^^
+    |
+   ::: C:\Users\alann\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libc-0.2.186\src\windows\mod.rs:231:1
+    |
+231 | pub const SIGILL: c_int = 4;
+    | ----------------------- similarly named constant `SIGILL` defined here
+    |
+help: a constant with a similar name exists
+    |
+140 -     SignalInfo { name: "SIGKILL", number: libc::SIGKILL },
+140 +     SignalInfo { name: "SIGKILL", number: libc::SIGILL },
+    |
+
+error[E0425]: cannot find value `SIGSTOP` in crate `libc`
+   --> src\app.rs:141:49
+    |
+141 |     SignalInfo { name: "SIGSTOP", number: libc::SIGSTOP },
+    |                                                 ^^^^^^^ not found in `libc`
+
+error[E0425]: cannot find value `SIGCONT` in crate `libc`
+   --> src\app.rs:142:49
+    |
+142 |     SignalInfo { name: "SIGCONT", number: libc::SIGCONT },
+    |                                                 ^^^^^^^
+    |
+   ::: C:\Users\alann\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libc-0.2.186\src\windows\mod.rs:230:1
+    |
+230 | pub const SIGINT: c_int = 2;
+    | ----------------------- similarly named constant `SIGINT` defined here
+    |
+help: a constant with a similar name exists
+    |
+142 -     SignalInfo { name: "SIGCONT", number: libc::SIGCONT },
+142 +     SignalInfo { name: "SIGCONT", number: libc::SIGINT },
+    |
+
+error[E0425]: cannot find value `SIGHUP` in crate `libc`
+   --> src\app.rs:143:49
+    |
+143 |     SignalInfo { name: "SIGHUP",  number: libc::SIGHUP },
+    |                                                 ^^^^^^ not found in `libc`
+
+error[E0425]: cannot find value `SIGUSR1` in crate `libc`
+   --> src\app.rs:144:49
+    |
+144 |     SignalInfo { name: "SIGUSR1", number: libc::SIGUSR1 },
+    |                                                 ^^^^^^^ not found in `libc`
+
+error[E0425]: cannot find value `SIGUSR2` in crate `libc`
+   --> src\app.rs:145:49
+    |
+145 |     SignalInfo { name: "SIGUSR2", number: libc::SIGUSR2 },
+    |                                                 ^^^^^^^ not found in `libc`
+
+error[E0425]: cannot find function `kill` in crate `libc`
+   --> src\input.rs:404:15
+    |
+404 |         libc::kill(pid.as_u32() as i32, sig);
+    |               ^^^^ not found in `libc`
+
+error[E0425]: cannot find function `getuid` in crate `libc`
+   --> src\widgets\overview.rs:54:34
+    |
+ 54 |     let is_root = unsafe { libc::getuid() } == 0;
+    |                                  ^^^^^^
+    |
+   ::: C:\Users\alann\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libc-0.2.186\src\windows\mod.rs:517:5
+    |
+517 |     pub fn getpid() -> c_int;
+    |     ------------------------- similarly named function `getpid` defined here
+    |
+help: a function with a similar name exists
+    |
+ 54 -     let is_root = unsafe { libc::getuid() } == 0;
+ 54 +     let is_root = unsafe { libc::getpid() } == 0;
+    |
+
+warning: unused variable: `cols`
+  --> src\widgets\gpu.rs:94:9
+   |
+94 |     let cols = Layout::default()
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_cols`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src\service_inspector.rs:74:9
+   |
+74 |     let mut candidate_args: Vec<String> = Vec::new();
+   |         ----^^^^^^^^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `service_file_contents`
+  --> src\service_inspector.rs:65:27
+   |
+65 | ...tect_config_file(service_file_contents: &str) -> Option<String> { 
+   |                     ^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_service_file_contents`
+
+warning: unused variable: `config_flags`
+  --> src\service_inspector.rs:72:9
+   |
+72 |     let config_flags = ["--config", "--conf", "-c", "-f", "--conf... 
+   |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_config_flags`
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `tempest-monitor` (lib) generated 4 warnings
+error: could not compile `tempest-monitor` (lib) due to 8 previous errors; 4 warnings emitted
+PS C:\Users\alann\tempest-monitor>

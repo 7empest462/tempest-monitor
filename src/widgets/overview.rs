@@ -51,7 +51,7 @@ fn render_system_bar(f: &mut Frame, _app: &App, area: Rect) {
 
     let load = System::load_average();
     
-    let is_root = unsafe { libc::getuid() } == 0;
+    let is_root = crate::platform::is_running_as_admin();
     
     let mut spans = vec![
         Span::styled(format!(" {} ", hostname), Style::default().fg(theme::accent()).add_modifier(ratatui::style::Modifier::BOLD)),
