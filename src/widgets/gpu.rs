@@ -9,6 +9,13 @@ use ratatui::{
 use crate::app::App;
 use crate::theme;
 
+/// Public bridge called by app.rs refresh_gpu() on Windows only.
+/// Returns the current GPU utilisation % from PDH, or None if not ready.
+#[cfg(windows)]
+pub fn windows_gpu_sample() -> Option<f64> {
+    windows_gpu::gpu_utilization()
+}
+
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -102,18 +109,10 @@ fn render_gpu_header(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(p, area);
 }
 
-fn render_gpu_sparkline(f: &mut Frame, #[allow(unused_variables)] app: &App, area: Rect) {
-    #[cfg(windows)]
-    let (data, current) = {
-        let d = windows_gpu::history_tick_and_get(60);
-        let c = d.last().copied().unwrap_or(0) as f64;
-        (d, c)
-    };
-
-    #[cfg(not(windows))]
-    let (data, current) = {
-        (app.gpu_history.iter().copied().collect::<Vec<u64>>(), app.gpu_usage.max(0.0))
-    };
+fn render_gpu_sparkline(f: &mut Frame, app: &App, area: Rect) {
+    // app.gpu_history is populated by refresh_gpu() on all platforms including Windows.
+    let data: Vec<u64> = app.gpu_history.iter().copied().collect();
+    let current = app.gpu_usage.max(0.0);
 
     let sparkline = Sparkline::default()
         .block(
@@ -130,16 +129,8 @@ fn render_gpu_sparkline(f: &mut Frame, #[allow(unused_variables)] app: &App, are
 }
 
 fn render_gpu_gauge(f: &mut Frame, app: &App, area: Rect) {
-    let current = {
-        #[cfg(windows)]
-        {
-            windows_gpu::gpu_utilization().unwrap_or_else(|| app.gpu_usage.max(0.0))
-        }
-        #[cfg(not(windows))]
-        {
-            app.gpu_usage.max(0.0)
-        }
-    };
+    // app.gpu_usage is populated by refresh_gpu() on all platforms.
+    let current = app.gpu_usage.max(0.0);
     let ratio = (current / 100.0).clamp(0.0, 1.0);
 
     let gauge = Gauge::default()
@@ -533,20 +524,7 @@ mod windows_gpu {
         PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
     };
 
-    // Simple per-thread history buffer for sparkline on Windows
-    thread_local! {
-        static GPU_HISTORY: RefCell<Vec<u64>> = RefCell::new(Vec::new());
-    }
 
-    pub fn history_tick_and_get(max_len: usize) -> Vec<u64> {
-        GPU_HISTORY.with(|cell| {
-            let mut v = cell.borrow_mut();
-            let sample = gpu_utilization().unwrap_or(0.0).clamp(0.0, 100.0).round() as u64;
-            v.push(sample);
-            if v.len() > max_len { let drop_n = v.len() - max_len; v.drain(0..drop_n); }
-            v.clone()
-        })
-    }
 
     struct PdhGpu {
         query: PDH_HQUERY,

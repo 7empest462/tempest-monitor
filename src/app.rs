@@ -741,7 +741,7 @@ impl App {
                 self.ane_power_mw = tel.ane_power_mw;
                 self.gpu_freq_mhz = tel.gpu_freq_mhz;
                 self.gpu_model = tel.model;
-                
+
                 Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
             },
             target_os = "linux" => {
@@ -755,6 +755,17 @@ impl App {
                 self.gpu_driver = tel.driver;
                 self.nvidia_gpus = tel.nvidia_info;
 
+                Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
+            },
+            target_os = "windows" => {
+                // Sample GPU utilisation from PDH (same counters Task Manager uses).
+                // PDH handles are cached thread-locally in the windows_gpu module.
+                use crate::widgets::gpu::windows_gpu_sample;
+                if let Some(pct) = windows_gpu_sample() {
+                    self.gpu_usage = pct;
+                } else {
+                    self.gpu_usage = 0.0; // PDH not ready yet — show 0 rather than -1
+                }
                 Self::push_history(&mut self.gpu_history, self.gpu_usage.max(0.0) as u64);
             },
             _ => {}

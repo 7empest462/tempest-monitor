@@ -42,6 +42,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Starting Tempest Monitor v{}", env!("CARGO_PKG_VERSION"));
 
+    // On Windows the console defaults to a legacy code page that can't render
+    // Unicode block characters (▁▂▃▄▅▆▇█) — switch to UTF-8 before entering raw mode.
+    #[cfg(windows)]
+    unsafe {
+        windows::Win32::System::Console::SetConsoleOutputCP(65001);
+    }
+
     // Load config (file + CLI overrides)
     let mut cfg = TempestConfig::load(cli.config.as_deref());
     cfg.apply_cli(&cli);

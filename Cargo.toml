@@ -98,6 +98,7 @@ windows = { version = "0.62", features = [
     "Win32_System_Power",                    # POWER_INFORMATION_LEVEL / power plan support
     "Win32_Graphics_Dxgi",                   # IDXGIFactory / IDXGIAdapter — GPU name + VRAM
     "Win32_Graphics_Dxgi_Common",            # DXGI shared types
+    "Win32_System_Console",                  # SetConsoleOutputCP — force UTF-8 for sparklines
 ]}
 
 [target.'cfg(target_os = "linux")'.dependencies]
