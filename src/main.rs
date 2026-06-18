@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Unicode block characters (▁▂▃▄▅▆▇█) — switch to UTF-8 before entering raw mode.
     #[cfg(windows)]
     unsafe {
-        windows::Win32::System::Console::SetConsoleOutputCP(65001);
+        let _ = windows::Win32::System::Console::SetConsoleOutputCP(65001);
     }
 
     // Load config (file + CLI overrides)

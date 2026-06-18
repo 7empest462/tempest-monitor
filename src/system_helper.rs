@@ -433,44 +433,57 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 
         // --- Match Activity Monitor's memory model exactly ---
         //
-        // Activity Monitor "Memory Used" = App Memory + Wired Memory + Compressed
-        //   App Memory   = internal_page_count - purgeable_count   (anonymous/app pages)
-        //   Wired Memory = wire_count                               (kernel-locked pages)
-        //   Compressed   = compressor_page_count                   (pages the compressor holds)
+        // Modern macOS vm_stat key names (verified on macOS 15/26):
+        //   "File-backed pages"           → Cached Files  (NOT "Pages external" — old/wrong name)
+        //   "Anonymous pages"             → App + inactive anonymous
+        //   "Pages wired down"            → Wired Memory
+        //   "Pages occupied by compressor"→ Compressed pages
+        //   "Pages free"                  → Truly free
+        //   "Pages speculative"           → Free on-demand (counts as free)
         //
-        // Activity Monitor "Cached Files" = external_page_count    (file-backed, reclaimable)
+        // Activity Monitor formula:
+        //   Memory Used  = Total − Cached Files − Free
+        //   Cached Files = File-backed pages * page_size
+        //   Free         = (Pages free + Pages speculative) * page_size
         //
-        // Activity Monitor "Free" = free_count + speculative_count
-        //   (speculative pages are reclaimed instantly on demand)
-        //
-        // Tempest mapping:
-        //   active (App bar, green)  → internal_pages - purgeable  (App Memory)
-        //   wired  (accent bar)      → wire_pages                  (Wired Memory)
-        //   cache  (yellow bar)      → external_pages              (Cached Files)
-        //   free   (remainder)       → free + speculative
-        //
-        // NOTE: compressed pages are added into active so the bar's "used"
-        //       total equals Activity Monitor's "Memory Used".
+        // We use the residual approach: active = total − wired − cache − free
+        // This guarantees all bars sum to 100% and "active" matches AM "Memory Used − Wired".
 
-        let internal_pages  = stats.get("Pages internal").copied().unwrap_or(0);
-        let external_pages  = stats.get("Pages external").copied().unwrap_or(0);
-        let purgeable_pages = stats.get("Pages purgeable").copied().unwrap_or(0);
-        let wired_pages     = stats.get("Pages wired down").copied().unwrap_or(0);
-        let free_pages      = stats.get("Pages free").copied().unwrap_or(0);
-        let spec_pages      = stats.get("Pages speculative").copied().unwrap_or(0);
-        let comp_pages      = stats.get("Pages occupied by compressor").copied().unwrap_or(0);
+        let wired_pages = stats.get("Pages wired down").copied().unwrap_or(0);
+        let free_pages  = stats.get("Pages free").copied().unwrap_or(0);
+        let spec_pages  = stats.get("Pages speculative").copied().unwrap_or(0);
+        // Prefer modern key; fall back to older "Pages external" if needed
+        let cache_pages = stats
+            .get("File-backed pages")
+            .copied()
+            .or_else(|| stats.get("Pages external").copied())
+            .unwrap_or(0);
 
-        let total = sys.total_memory();
+        // Require at least one meaningful field — if vm_stat parse failed, fall back.
+        if wired_pages == 0 && free_pages == 0 && cache_pages == 0 {
+            return None;
+        }
 
-        // App Memory = internal - purgeable + compressed  (matches Activity Monitor "Memory Used")
-        let app_pages = internal_pages
-            .saturating_sub(purgeable_pages)
-            .saturating_add(comp_pages);
+        let total = unsafe {
+            let cname = std::ffi::CString::new("hw.memsize").unwrap();
+            let mut memsize: u64 = 0;
+            let len = std::mem::size_of::<u64>();
+            let ret = libc::sysctlbyname(
+                cname.as_ptr(),
+                &mut memsize as *mut _ as *mut libc::c_void,
+                &mut (len as libc::size_t) as *mut libc::size_t,
+                std::ptr::null_mut(),
+                0,
+            );
+            if ret == 0 && memsize > 0 { memsize } else { sys.total_memory() }
+        };
 
-        let active = app_pages.saturating_mul(page_size);
-        let wired  = wired_pages.saturating_mul(page_size);
-        let cache  = external_pages.saturating_mul(page_size);   // Cached Files
-        let free   = free_pages.saturating_add(spec_pages).saturating_mul(page_size);
+        let wired = wired_pages.saturating_mul(page_size);
+        let cache = cache_pages.saturating_mul(page_size);
+        let free  = free_pages.saturating_add(spec_pages).saturating_mul(page_size);
+
+        // Residual = App Memory + Compressed  (= Activity Monitor "Memory Used" − Wired)
+        let active = total.saturating_sub(wired).saturating_sub(cache).saturating_sub(free);
 
         Some(MemorySegments {
             total,
@@ -483,7 +496,6 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 
     try_parse().unwrap_or_else(|| get_fallback_segments(sys))
 }
-
 
 #[cfg(target_os = "linux")]
 pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {

@@ -1,6 +1,6 @@
 # 7EMPEST MONITOR ⚡️ [![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20+%20Commons%20Clause-blue.svg)](LICENSE)
 
-A stunning, real-time terminal system monitor (TUI) for macOS and Linux, built with Rust.
+A stunning, real-time terminal system monitor (TUI) for macOS, Windows and Linux, built with Rust.
 
 ## Gallery
 
