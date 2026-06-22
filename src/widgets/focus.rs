@@ -1,11 +1,11 @@
 /// Process Focus Dashboard — full-screen drill-down for a single process.
 /// Activated when the user presses Enter on a process in the Processes tab.
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::app::App;
@@ -20,8 +20,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let proc = match app.sys.process(pid) {
         Some(p) => p,
         None => {
-            let p = Paragraph::new(" Process no longer running.")
-                .style(theme::style_muted());
+            let p = Paragraph::new(" Process no longer running.").style(theme::style_muted());
             f.render_widget(p, area);
             return;
         }
@@ -40,7 +39,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
     // ── Header ────────────────────────────────────────────────────────────────
     let compressed = app.get_compressed_mem(pid);
-    let total_mem  = proc.memory() + compressed;
+    let total_mem = proc.memory() + compressed;
     let header_line = Line::from(vec![
         Span::styled(" FOCUS: ", theme::style_muted()),
         Span::styled(
@@ -50,8 +49,14 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!("  PID {}", pid), theme::style_muted()),
-        Span::styled(format!("  │  Status: {:?}", proc.status()), theme::style_muted()),
-        Span::styled(format!("  │  Uptime: {}s", proc.run_time()), theme::style_muted()),
+        Span::styled(
+            format!("  │  Status: {:?}", proc.status()),
+            theme::style_muted(),
+        ),
+        Span::styled(
+            format!("  │  Uptime: {}s", proc.run_time()),
+            theme::style_muted(),
+        ),
     ]);
     let header_para = Paragraph::new(header_line).block(
         Block::default()
@@ -96,7 +101,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 .border_style(theme::style_border()),
         )
         .ratio(mem_ratio)
-        .label(format!("{} / {}  ({:.1}%)",
+        .label(format!(
+            "{} / {}  ({:.1}%)",
             fmt_bytes(total_mem),
             fmt_bytes(total_sys_mem),
             mem_pct
@@ -108,9 +114,15 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let disk = proc.disk_usage();
     let detail = format!(
         " Command: {}\n\n Parent PID: {:?}\n User ID:    {}\n\n Disk Read:  {}  │  Total Read:  {}\n Disk Write: {}  │  Total Write: {}\n\n Resident:   {}\n Compressed: {}\n Virtual:    {}",
-        proc.cmd().iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "),
+        proc.cmd()
+            .iter()
+            .map(|a| a.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" "),
         proc.parent(),
-        proc.user_id().map(|u| u.to_string()).unwrap_or_else(|| "n/a".into()),
+        proc.user_id()
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| "n/a".into()),
         fmt_bytes(disk.read_bytes),
         fmt_bytes(disk.total_read_bytes),
         fmt_bytes(disk.written_bytes),

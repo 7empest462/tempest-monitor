@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
-    Frame,
 };
 
 use crate::app::{App, ServiceInspectorMode};
@@ -22,10 +22,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 fn render_service_list(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(area);
 
     render_service_table(f, app, chunks[0]);
@@ -42,25 +39,40 @@ fn render_service_table(f: &mut Frame, app: &mut App, area: Rect) {
     .style(Style::default().bg(theme::header_bg()))
     .height(1);
 
-    let rows: Vec<Row> = app.services.list.iter().map(|svc| {
-        let pid_str    = svc.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into());
-        let status_str = if svc.pid.is_some() { "running".to_string() } else { svc.status.to_string() };
-        let status_style = if svc.pid.is_some() {
-            Style::default().fg(Color::Rgb(166, 227, 161)).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(theme::fg_muted())
-        };
+    let rows: Vec<Row> = app
+        .services
+        .list
+        .iter()
+        .map(|svc| {
+            let pid_str = svc.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into());
+            let status_str = if svc.pid.is_some() {
+                "running".to_string()
+            } else {
+                svc.status.to_string()
+            };
+            let status_style = if svc.pid.is_some() {
+                Style::default()
+                    .fg(Color::Rgb(166, 227, 161))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme::fg_muted())
+            };
 
-        Row::new(vec![
-            Cell::from(pid_str),
-            Cell::from(status_str).style(status_style),
-            Cell::from(svc.label.clone()),
-        ])
-    }).collect();
+            Row::new(vec![
+                Cell::from(pid_str),
+                Cell::from(status_str).style(status_style),
+                Cell::from(svc.label.clone()),
+            ])
+        })
+        .collect();
 
     let table = Table::new(
         rows,
-        [Constraint::Length(8), Constraint::Length(10), Constraint::Min(40)],
+        [
+            Constraint::Length(8),
+            Constraint::Length(10),
+            Constraint::Min(40),
+        ],
     )
     .header(header)
     .row_highlight_style(theme::style_selected())
@@ -88,10 +100,24 @@ fn render_action_bar(f: &mut Frame, app: &App, area: Rect) {
     } else if let Some(svc) = app.services.list.get(app.services.selected) {
         Line::from(vec![
             Span::styled(" Selected: ", Style::default().fg(theme::fg_muted())),
-            Span::styled(svc.label.clone(), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
             Span::styled(
-                if svc.pid.is_some() { "  [RUNNING]" } else { "  [STOPPED]" },
-                Style::default().fg(if svc.pid.is_some() { Color::Rgb(166, 227, 161) } else { Color::Rgb(243, 139, 168) })
+                svc.label.clone(),
+                Style::default()
+                    .fg(theme::accent())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if svc.pid.is_some() {
+                    "  [RUNNING]"
+                } else {
+                    "  [STOPPED]"
+                },
+                Style::default()
+                    .fg(if svc.pid.is_some() {
+                        Color::Rgb(166, 227, 161)
+                    } else {
+                        Color::Rgb(243, 139, 168)
+                    })
                     .add_modifier(Modifier::BOLD),
             ),
         ])
@@ -113,7 +139,7 @@ fn render_inspector(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),  // Header: service info
+            Constraint::Length(5), // Header: service info
             Constraint::Min(0),    // Body: file contents or logs
             Constraint::Length(3), // Footer: action bar
         ])
@@ -148,9 +174,12 @@ fn render_inspector_header(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let sip_badge = if app.services.is_sip_protected {
-        Span::styled(" [SIP PROTECTED] ", Style::default()
-            .fg(Color::Rgb(249, 226, 175))
-            .add_modifier(Modifier::BOLD))
+        Span::styled(
+            " [SIP PROTECTED] ",
+            Style::default()
+                .fg(Color::Rgb(249, 226, 175))
+                .add_modifier(Modifier::BOLD),
+        )
     } else {
         Span::raw("")
     };
@@ -158,7 +187,12 @@ fn render_inspector_header(f: &mut Frame, app: &App, area: Rect) {
     let lines = vec![
         Line::from(vec![
             Span::styled(" Status: ", Style::default().fg(theme::fg_muted())),
-            Span::styled(status_text, Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                status_text,
+                Style::default()
+                    .fg(status_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
             sip_badge,
         ]),
         Line::from(vec![
@@ -167,20 +201,34 @@ fn render_inspector_header(f: &mut Frame, app: &App, area: Rect) {
         ]),
         Line::from(vec![
             Span::styled(" Config: ", Style::default().fg(theme::fg_muted())),
-            Span::styled(config_text, Style::default().fg(
-                if app.services.config_path.is_some() { theme::accent() } else { theme::fg_muted() }
-            )),
+            Span::styled(
+                config_text,
+                Style::default().fg(if app.services.config_path.is_some() {
+                    theme::accent()
+                } else {
+                    theme::fg_muted()
+                }),
+            ),
         ]),
     ];
 
-    let title = format!(" {} ", app.services.list.get(app.services.selected)
-        .map(|s| s.label.as_str())
-        .unwrap_or("Service"));
+    let title = format!(
+        " {} ",
+        app.services
+            .list
+            .get(app.services.selected)
+            .map(|s| s.label.as_str())
+            .unwrap_or("Service")
+    );
 
     let p = Paragraph::new(lines).block(
         Block::default()
             .title(title)
-            .title_style(Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme::accent())
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(theme::style_border()),
     );
@@ -192,15 +240,19 @@ fn render_inspector_body(f: &mut Frame, app: &mut App, area: Rect) {
         ServiceInspectorMode::View => {
             let title = " Service File Contents ";
             let lines: Vec<Line> = if let Some(ref contents) = app.services.file_contents {
-                contents.lines().enumerate().map(|(i, line)| {
-                    Line::from(vec![
-                        Span::styled(
-                            format!(" {:4} │ ", i + 1),
-                            Style::default().fg(theme::fg_muted()),
-                        ),
-                        Span::raw(line.to_string()),
-                    ])
-                }).collect()
+                contents
+                    .lines()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        Line::from(vec![
+                            Span::styled(
+                                format!(" {:4} │ ", i + 1),
+                                Style::default().fg(theme::fg_muted()),
+                            ),
+                            Span::raw(line.to_string()),
+                        ])
+                    })
+                    .collect()
             } else {
                 vec![
                     Line::from(""),
@@ -228,16 +280,22 @@ fn render_inspector_body(f: &mut Frame, app: &mut App, area: Rect) {
                     )),
                 ]
             } else {
-                app.services.log_lines.iter().map(|l| {
-                    if l.starts_with("──") {
-                        Line::from(Span::styled(
-                            format!(" {}", l),
-                             Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD),
-                        ))
-                    } else {
-                        Line::from(Span::raw(format!(" {}", l)))
-                    }
-                }).collect()
+                app.services
+                    .log_lines
+                    .iter()
+                    .map(|l| {
+                        if l.starts_with("──") {
+                            Line::from(Span::styled(
+                                format!(" {}", l),
+                                Style::default()
+                                    .fg(theme::accent())
+                                    .add_modifier(Modifier::BOLD),
+                            ))
+                        } else {
+                            Line::from(Span::raw(format!(" {}", l)))
+                        }
+                    })
+                    .collect()
             };
             (title, lines)
         }
@@ -271,40 +329,54 @@ fn render_inspector_actions(f: &mut Frame, app: &App, area: Rect) {
     let edit_style = if app.services.is_sip_protected || app.services.file_path.is_none() {
         Style::default().fg(theme::fg_muted()) // greyed out
     } else {
-        Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(theme::accent())
+            .add_modifier(Modifier::BOLD)
     };
 
     let config_style = if app.services.config_path.is_some() {
-        Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(theme::accent())
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(theme::fg_muted()) // greyed out
     };
 
-    let log_style = Style::default().fg(
-        if app.services.inspector_mode == ServiceInspectorMode::Logs {
-            Color::Rgb(166, 227, 161) // active highlight
-        } else {
-            theme::accent()
-        }
-    ).add_modifier(Modifier::BOLD);
+    let log_style = Style::default()
+        .fg(
+            if app.services.inspector_mode == ServiceInspectorMode::Logs {
+                Color::Rgb(166, 227, 161) // active highlight
+            } else {
+                theme::accent()
+            },
+        )
+        .add_modifier(Modifier::BOLD);
 
-    let action_style = Style::default().fg(theme::accent2()).add_modifier(Modifier::BOLD);
+    let action_style = Style::default()
+        .fg(theme::accent2())
+        .add_modifier(Modifier::BOLD);
 
     let mut spans = vec![
         Span::raw(" "),
         Span::styled("[e]", edit_style),
-        Span::styled(" Edit File ", if app.services.is_sip_protected {
-            Style::default().fg(theme::fg_muted())
-        } else {
-            Style::default()
-        }),
+        Span::styled(
+            " Edit File ",
+            if app.services.is_sip_protected {
+                Style::default().fg(theme::fg_muted())
+            } else {
+                Style::default()
+            },
+        ),
         Span::raw("│ "),
         Span::styled("[c]", config_style),
-        Span::styled(" Config ", if app.services.config_path.is_none() {
-            Style::default().fg(theme::fg_muted())
-        } else {
-            Style::default()
-        }),
+        Span::styled(
+            " Config ",
+            if app.services.config_path.is_none() {
+                Style::default().fg(theme::fg_muted())
+            } else {
+                Style::default()
+            },
+        ),
         Span::raw("│ "),
         Span::styled("[l]", log_style),
         Span::raw(" Logs "),
@@ -316,14 +388,22 @@ fn render_inspector_actions(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("[r]", action_style),
         Span::raw(" Restart "),
         Span::raw("│ "),
-        Span::styled("[Esc]", Style::default().fg(Color::Rgb(243, 139, 168)).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "[Esc]",
+            Style::default()
+                .fg(Color::Rgb(243, 139, 168))
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" Back"),
     ];
 
     // Append feedback if any
     if let Some(ref feedback) = app.services.action_pending {
         spans.push(Span::raw(" │ "));
-        spans.push(Span::styled(feedback.clone(), Style::default().fg(Color::Rgb(249, 226, 175))));
+        spans.push(Span::styled(
+            feedback.clone(),
+            Style::default().fg(Color::Rgb(249, 226, 175)),
+        ));
     }
 
     let p = Paragraph::new(Line::from(spans)).block(
@@ -362,7 +442,10 @@ pub fn run_service_action(app: &mut App, action: &str) {
 
         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         let result: Result<std::process::ExitStatus, std::io::Error> = {
-            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "unsupported platform",
+            ))
         };
 
         app.services.action_pending = Some(match result {

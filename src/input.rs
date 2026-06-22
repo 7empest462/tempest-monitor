@@ -52,7 +52,9 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         }
         KeyCode::Char('9') => {
             app.active_tab = ActiveTab::Sockets;
-            if app.sockets.list.is_empty() { app.refresh_sockets(); }
+            if app.sockets.list.is_empty() {
+                app.refresh_sockets();
+            }
         }
         KeyCode::Char('0') => {
             app.active_tab = ActiveTab::History;
@@ -66,7 +68,11 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         }
         KeyCode::BackTab => {
             let idx = app.active_tab.index();
-            let prev = if idx == 0 { ActiveTab::ALL.len() - 1 } else { idx - 1 };
+            let prev = if idx == 0 {
+                ActiveTab::ALL.len() - 1
+            } else {
+                idx - 1
+            };
             app.active_tab = ActiveTab::ALL[prev];
         }
 
@@ -143,7 +149,7 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         }
         KeyCode::F(6) => {
             if app.processes.sort_mode == SortMode::DiskIo {
-                 app.processes.sort_direction = flip(app.processes.sort_direction);
+                app.processes.sort_direction = flip(app.processes.sort_direction);
             } else {
                 app.processes.sort_mode = SortMode::DiskIo;
                 app.processes.sort_direction = SortDirection::Desc;
@@ -169,7 +175,11 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         }
         KeyCode::F(9) if app.active_tab == ActiveTab::Cpu => {
             // Linux only: Performance mode
-            if app.cpu_power.available_modes.contains(&CpuPowerMode::Performance) {
+            if app
+                .cpu_power
+                .available_modes
+                .contains(&CpuPowerMode::Performance)
+            {
                 app.set_cpu_power_mode(CpuPowerMode::Performance);
             }
         }
@@ -233,79 +243,97 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
         }
 
         // Navigation — routes to the right selection field per active tab
-        KeyCode::Down | KeyCode::Char('j') => {
-            match app.active_tab {
-                ActiveTab::Services => {
-                    let max = app.services.list.len().saturating_sub(1);
-                    app.services.selected = (app.services.selected + 1).min(max);
-                }
-                ActiveTab::Sockets => {
-                    let max = app.sockets.list.len().saturating_sub(1);
-                    app.sockets.selected = (app.sockets.selected + 1).min(max);
-                }
-                ActiveTab::History => {
-                    let max = app.history.snapshots.len().saturating_sub(1);
-                    app.history.selected = (app.history.selected + 1).min(max);
-                }
-                _ => { app.processes.selected = app.processes.selected.saturating_add(1); }
+        KeyCode::Down | KeyCode::Char('j') => match app.active_tab {
+            ActiveTab::Services => {
+                let max = app.services.list.len().saturating_sub(1);
+                app.services.selected = (app.services.selected + 1).min(max);
             }
-        }
-        KeyCode::Up | KeyCode::Char('k') => {
-            match app.active_tab {
-                ActiveTab::Services => {
-                    app.services.selected = app.services.selected.saturating_sub(1);
-                }
-                ActiveTab::Sockets => {
-                    app.sockets.selected = app.sockets.selected.saturating_sub(1);
-                }
-                ActiveTab::History => {
-                    app.history.selected = app.history.selected.saturating_sub(1);
-                }
-                _ if !app.processes.signal_menu_open => {
-                    app.processes.selected = app.processes.selected.saturating_sub(1);
-                }
-                _ => {}
+            ActiveTab::Sockets => {
+                let max = app.sockets.list.len().saturating_sub(1);
+                app.sockets.selected = (app.sockets.selected + 1).min(max);
             }
-        }
-        KeyCode::PageDown => {
-            match app.active_tab {
-                ActiveTab::Services => {
-                    let max = app.services.list.len().saturating_sub(1);
-                    app.services.selected = (app.services.selected + 20).min(max);
-                }
-                ActiveTab::Sockets => {
-                    let max = app.sockets.list.len().saturating_sub(1);
-                    app.sockets.selected = (app.sockets.selected + 20).min(max);
-                }
-                ActiveTab::History => {
-                    let max = app.history.snapshots.len().saturating_sub(1);
-                    app.history.selected = (app.history.selected + 20).min(max);
-                }
-                _ => { app.processes.selected = app.processes.selected.saturating_add(20); }
+            ActiveTab::History => {
+                let max = app.history.snapshots.len().saturating_sub(1);
+                app.history.selected = (app.history.selected + 1).min(max);
             }
-        }
-        KeyCode::PageUp => {
-            match app.active_tab {
-                ActiveTab::Services => { app.services.selected = app.services.selected.saturating_sub(20); }
-                ActiveTab::Sockets  => { app.sockets.selected = app.sockets.selected.saturating_sub(20); }
-                ActiveTab::History  => { app.history.selected = app.history.selected.saturating_sub(20); }
-                _ => { app.processes.selected = app.processes.selected.saturating_sub(20); }
+            _ => {
+                app.processes.selected = app.processes.selected.saturating_add(1);
             }
-        }
-        KeyCode::Home => {
-            match app.active_tab {
-                ActiveTab::Services => { app.services.selected = 0; }
-                ActiveTab::Sockets  => { app.sockets.selected = 0; }
-                ActiveTab::History  => { app.history.selected = 0; }
-                _ => { app.processes.selected = 0; }
+        },
+        KeyCode::Up | KeyCode::Char('k') => match app.active_tab {
+            ActiveTab::Services => {
+                app.services.selected = app.services.selected.saturating_sub(1);
             }
-        }
+            ActiveTab::Sockets => {
+                app.sockets.selected = app.sockets.selected.saturating_sub(1);
+            }
+            ActiveTab::History => {
+                app.history.selected = app.history.selected.saturating_sub(1);
+            }
+            _ if !app.processes.signal_menu_open => {
+                app.processes.selected = app.processes.selected.saturating_sub(1);
+            }
+            _ => {}
+        },
+        KeyCode::PageDown => match app.active_tab {
+            ActiveTab::Services => {
+                let max = app.services.list.len().saturating_sub(1);
+                app.services.selected = (app.services.selected + 20).min(max);
+            }
+            ActiveTab::Sockets => {
+                let max = app.sockets.list.len().saturating_sub(1);
+                app.sockets.selected = (app.sockets.selected + 20).min(max);
+            }
+            ActiveTab::History => {
+                let max = app.history.snapshots.len().saturating_sub(1);
+                app.history.selected = (app.history.selected + 20).min(max);
+            }
+            _ => {
+                app.processes.selected = app.processes.selected.saturating_add(20);
+            }
+        },
+        KeyCode::PageUp => match app.active_tab {
+            ActiveTab::Services => {
+                app.services.selected = app.services.selected.saturating_sub(20);
+            }
+            ActiveTab::Sockets => {
+                app.sockets.selected = app.sockets.selected.saturating_sub(20);
+            }
+            ActiveTab::History => {
+                app.history.selected = app.history.selected.saturating_sub(20);
+            }
+            _ => {
+                app.processes.selected = app.processes.selected.saturating_sub(20);
+            }
+        },
+        KeyCode::Home => match app.active_tab {
+            ActiveTab::Services => {
+                app.services.selected = 0;
+            }
+            ActiveTab::Sockets => {
+                app.sockets.selected = 0;
+            }
+            ActiveTab::History => {
+                app.history.selected = 0;
+            }
+            _ => {
+                app.processes.selected = 0;
+            }
+        },
         KeyCode::End => {
             match app.active_tab {
-                ActiveTab::Services => { app.services.selected = app.services.list.len().saturating_sub(1); }
-                ActiveTab::Sockets  => { app.sockets.selected = app.sockets.list.len().saturating_sub(1); }
-                ActiveTab::History  => { app.history.selected = app.history.snapshots.len().saturating_sub(1); }
-                _ => { app.processes.selected = usize::MAX; } // clamped during render
+                ActiveTab::Services => {
+                    app.services.selected = app.services.list.len().saturating_sub(1);
+                }
+                ActiveTab::Sockets => {
+                    app.sockets.selected = app.sockets.list.len().saturating_sub(1);
+                }
+                ActiveTab::History => {
+                    app.history.selected = app.history.snapshots.len().saturating_sub(1);
+                }
+                _ => {
+                    app.processes.selected = usize::MAX;
+                } // clamped during render
             }
         }
 
@@ -325,7 +353,12 @@ pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
             if app.active_tab == ActiveTab::Processes && app.processes.focus_pid.is_none() {
                 // Launch focus for selected process
                 let mut procs: Vec<_> = app.sys.processes().values().collect();
-                crate::widgets::processes::apply_sort(&mut procs, app.processes.sort_mode, app.processes.sort_direction, app);
+                crate::widgets::processes::apply_sort(
+                    &mut procs,
+                    app.processes.sort_mode,
+                    app.processes.sort_direction,
+                    app,
+                );
                 if let Some(p) = procs.get(app.processes.selected) {
                     app.processes.focus_pid = Some(p.pid());
                     app.processes.focus_cpu_history.clear();
@@ -377,24 +410,30 @@ fn flip(d: SortDirection) -> SortDirection {
 }
 
 fn send_signal_to_selected(app: &mut App) {
-
     let mut processes: Vec<_> = app.sys.processes().values().collect();
-    crate::widgets::processes::apply_sort(&mut processes, app.processes.sort_mode, app.processes.sort_direction, app);
+    crate::widgets::processes::apply_sort(
+        &mut processes,
+        app.processes.sort_mode,
+        app.processes.sort_direction,
+        app,
+    );
 
     let filter = app.processes.filter_text_area.lines()[0].to_string();
     if !filter.is_empty() {
         if app.processes.filter_regex {
             if let Ok(re) = regex::Regex::new(&filter) {
                 processes.retain(|p| {
-                    re.is_match(&p.name().to_string_lossy()) ||
-                    re.is_match(&p.pid().to_string())
+                    re.is_match(&p.name().to_string_lossy()) || re.is_match(&p.pid().to_string())
                 });
             }
         } else {
             let filter_str = filter.to_lowercase();
             processes.retain(|p| {
-                p.name().to_string_lossy().to_lowercase().contains(&filter_str) ||
-                p.pid().to_string().contains(&filter_str)
+                p.name()
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .contains(&filter_str)
+                    || p.pid().to_string().contains(&filter_str)
             });
         }
     }
@@ -418,8 +457,9 @@ fn handle_inspector_key(key: KeyEvent, app: &mut App) -> bool {
         // Edit service file
         KeyCode::Char('e') => {
             if !app.services.is_sip_protected
-                && let Some(ref path) = app.services.file_path {
-                    app.editor_request = Some(path.clone());
+                && let Some(ref path) = app.services.file_path
+            {
+                app.editor_request = Some(path.clone());
             }
         }
 
@@ -431,19 +471,17 @@ fn handle_inspector_key(key: KeyEvent, app: &mut App) -> bool {
         }
 
         // Toggle log view
-        KeyCode::Char('l') => {
-            match app.services.inspector_mode {
-                ServiceInspectorMode::View => {
-                    app.load_service_logs();
-                    app.services.inspector_mode = ServiceInspectorMode::Logs;
-                    app.services.inspector_scroll = 0;
-                }
-                ServiceInspectorMode::Logs => {
-                    app.services.inspector_mode = ServiceInspectorMode::View;
-                    app.services.inspector_scroll = 0;
-                }
+        KeyCode::Char('l') => match app.services.inspector_mode {
+            ServiceInspectorMode::View => {
+                app.load_service_logs();
+                app.services.inspector_mode = ServiceInspectorMode::Logs;
+                app.services.inspector_scroll = 0;
             }
-        }
+            ServiceInspectorMode::Logs => {
+                app.services.inspector_mode = ServiceInspectorMode::View;
+                app.services.inspector_scroll = 0;
+            }
+        },
 
         // Service actions within the inspector
         KeyCode::Enter => {

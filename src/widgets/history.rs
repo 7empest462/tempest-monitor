@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
-    Frame,
 };
 
 use crate::app::App;
@@ -15,9 +15,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     {
         let p = Paragraph::new(vec![
             Line::from(""),
-            Line::from(Span::styled("  Database feature is disabled in this build.", Style::default().fg(Color::Rgb(249, 226, 175)))),
+            Line::from(Span::styled(
+                "  Database feature is disabled in this build.",
+                Style::default().fg(Color::Rgb(249, 226, 175)),
+            )),
             Line::from(""),
-            Line::from(Span::styled("  To enable, recompile with `--features database`.", Style::default().fg(theme::fg_muted()))),
+            Line::from(Span::styled(
+                "  To enable, recompile with `--features database`.",
+                Style::default().fg(theme::fg_muted()),
+            )),
         ])
         .block(
             Block::default()
@@ -37,9 +43,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         if snapshots.is_empty() {
             let p = Paragraph::new(vec![
                 Line::from(""),
-                Line::from(Span::styled("  No historical snapshots recorded yet.", Style::default().fg(theme::fg_muted()))),
+                Line::from(Span::styled(
+                    "  No historical snapshots recorded yet.",
+                    Style::default().fg(theme::fg_muted()),
+                )),
                 Line::from(""),
-                Line::from(Span::styled("  Wait a few seconds for the telemetry loop to populate the database.", Style::default().fg(theme::fg_muted()))),
+                Line::from(Span::styled(
+                    "  Wait a few seconds for the telemetry loop to populate the database.",
+                    Style::default().fg(theme::fg_muted()),
+                )),
             ])
             .block(
                 Block::default()
@@ -126,15 +138,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let cpu_lines = vec![
             Line::from(vec![
                 Span::styled("Avg: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", cpu_avg), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:.1}%", cpu_avg),
+                    Style::default()
+                        .fg(theme::accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Min: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", cpu_min), Style::default().fg(Color::Rgb(166, 227, 161))),
+                Span::styled(
+                    format!("{:.1}%", cpu_min),
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Max: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", cpu_max), Style::default().fg(Color::Rgb(243, 139, 168))),
+                Span::styled(
+                    format!("{:.1}%", cpu_max),
+                    Style::default().fg(Color::Rgb(243, 139, 168)),
+                ),
             ]),
         ];
         f.render_widget(
@@ -152,15 +175,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let mem_lines = vec![
             Line::from(vec![
                 Span::styled("Avg: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.2} GB", mem_avg), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:.2} GB", mem_avg),
+                    Style::default()
+                        .fg(theme::accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Min: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.2} GB", mem_min), Style::default().fg(Color::Rgb(166, 227, 161))),
+                Span::styled(
+                    format!("{:.2} GB", mem_min),
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Max: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.2} GB", mem_max), Style::default().fg(Color::Rgb(243, 139, 168))),
+                Span::styled(
+                    format!("{:.2} GB", mem_max),
+                    Style::default().fg(Color::Rgb(243, 139, 168)),
+                ),
             ]),
         ];
         f.render_widget(
@@ -178,15 +212,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let gpu_lines = vec![
             Line::from(vec![
                 Span::styled("Avg: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", gpu_avg), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:.1}%", gpu_avg),
+                    Style::default()
+                        .fg(theme::accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Min: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", gpu_min), Style::default().fg(Color::Rgb(166, 227, 161))),
+                Span::styled(
+                    format!("{:.1}%", gpu_min),
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Max: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1}%", gpu_max), Style::default().fg(Color::Rgb(243, 139, 168))),
+                Span::styled(
+                    format!("{:.1}%", gpu_max),
+                    Style::default().fg(Color::Rgb(243, 139, 168)),
+                ),
             ]),
         ];
         f.render_widget(
@@ -204,15 +249,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let rx_lines = vec![
             Line::from(vec![
                 Span::styled("Avg: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", rx_avg), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:.1} KB/s", rx_avg),
+                    Style::default()
+                        .fg(theme::accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Min: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", rx_min), Style::default().fg(Color::Rgb(166, 227, 161))),
+                Span::styled(
+                    format!("{:.1} KB/s", rx_min),
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Max: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", rx_max), Style::default().fg(Color::Rgb(243, 139, 168))),
+                Span::styled(
+                    format!("{:.1} KB/s", rx_max),
+                    Style::default().fg(Color::Rgb(243, 139, 168)),
+                ),
             ]),
         ];
         f.render_widget(
@@ -230,15 +286,26 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         let tx_lines = vec![
             Line::from(vec![
                 Span::styled("Avg: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", tx_avg), Style::default().fg(theme::accent()).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:.1} KB/s", tx_avg),
+                    Style::default()
+                        .fg(theme::accent())
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Min: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", tx_min), Style::default().fg(Color::Rgb(166, 227, 161))),
+                Span::styled(
+                    format!("{:.1} KB/s", tx_min),
+                    Style::default().fg(Color::Rgb(166, 227, 161)),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Max: ", Style::default().fg(theme::fg_muted())),
-                Span::styled(format!("{:.1} KB/s", tx_max), Style::default().fg(Color::Rgb(243, 139, 168))),
+                Span::styled(
+                    format!("{:.1} KB/s", tx_max),
+                    Style::default().fg(Color::Rgb(243, 139, 168)),
+                ),
             ]),
         ];
         f.render_widget(
@@ -265,17 +332,24 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .style(Style::default().bg(theme::header_bg()))
         .height(1);
 
-        let rows: Vec<Row> = snapshots.iter().map(|s| {
-            Row::new(vec![
-                Cell::from(s.id.to_string()),
-                Cell::from(s.timestamp.clone()),
-                Cell::from(format!("{:.1}%", s.cpu_usage)),
-                Cell::from(format!("{:.2} GB", s.mem_used_gb)),
-                Cell::from(if s.gpu_usage >= 0.0 { format!("{:.1}%", s.gpu_usage) } else { "N/A".to_string() }),
-                Cell::from(format!("{:.1} KB/s", s.net_rx_kbps)),
-                Cell::from(format!("{:.1} KB/s", s.net_tx_kbps)),
-            ])
-        }).collect();
+        let rows: Vec<Row> = snapshots
+            .iter()
+            .map(|s| {
+                Row::new(vec![
+                    Cell::from(s.id.to_string()),
+                    Cell::from(s.timestamp.clone()),
+                    Cell::from(format!("{:.1}%", s.cpu_usage)),
+                    Cell::from(format!("{:.2} GB", s.mem_used_gb)),
+                    Cell::from(if s.gpu_usage >= 0.0 {
+                        format!("{:.1}%", s.gpu_usage)
+                    } else {
+                        "N/A".to_string()
+                    }),
+                    Cell::from(format!("{:.1} KB/s", s.net_rx_kbps)),
+                    Cell::from(format!("{:.1} KB/s", s.net_tx_kbps)),
+                ])
+            })
+            .collect();
 
         let table = Table::new(
             rows,
@@ -293,13 +367,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         .row_highlight_style(theme::style_selected())
         .block(
             Block::default()
-                .title(format!(" Historical Metric Records (showing last {}) │ [↑↓/jk/PgUp/PgDn] Scroll ", snapshots.len()))
+                .title(format!(
+                    " Historical Metric Records (showing last {}) │ [↑↓/jk/PgUp/PgDn] Scroll ",
+                    snapshots.len()
+                ))
                 .title_style(theme::style_title())
                 .borders(Borders::ALL)
                 .border_style(theme::style_border()),
         );
 
-        let mut state = ratatui::widgets::TableState::default().with_selected(Some(app.history.selected));
+        let mut state =
+            ratatui::widgets::TableState::default().with_selected(Some(app.history.selected));
         f.render_stateful_widget(table, main_chunks[1], &mut state);
     }
 }

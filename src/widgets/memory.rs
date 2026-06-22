@@ -1,8 +1,8 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
     widgets::{Block, Borders, Sparkline},
-    Frame,
 };
 
 use crate::app::App;
@@ -16,7 +16,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(5), // SWAP sparkline
             Constraint::Length(5), // RAM gauge
             Constraint::Length(5), // SWAP gauge
-            Constraint::Min(0),   // Details
+            Constraint::Min(0),    // Details
         ])
         .split(area);
 
@@ -58,7 +58,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let active = app.mem_segments.active;
     let wired = app.mem_segments.wired;
     let cache = app.mem_segments.cache;
-    let free = total.saturating_sub(active).saturating_sub(wired).saturating_sub(cache);
+    let free = total
+        .saturating_sub(active)
+        .saturating_sub(wired)
+        .saturating_sub(cache);
 
     let active_chars = if total > 0 {
         ((active as f64 / total as f64) * inner_width as f64).round() as usize
@@ -108,18 +111,20 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let total_gib = total as f64 / 1_073_741_824.0;
     let cache_gib = cache as f64 / 1_073_741_824.0;
     let free_gib = free as f64 / 1_073_741_824.0;
-    let pct = if total > 0 { (active + wired) as f64 / total as f64 * 100.0 } else { 0.0 };
+    let pct = if total > 0 {
+        (active + wired) as f64 / total as f64 * 100.0
+    } else {
+        0.0
+    };
 
-    let ram_label_line = ratatui::text::Line::from(vec![
-        ratatui::text::Span::raw(format!(
-            " {:.2} GiB used ({:.0}%) / {:.2} GiB total │ Cache: {:.2} GiB │ Free: {:.2} GiB",
-            used_gib,
-            pct.clamp(0.0, 100.0),
-            total_gib,
-            cache_gib,
-            free_gib,
-        ))
-    ]);
+    let ram_label_line = ratatui::text::Line::from(vec![ratatui::text::Span::raw(format!(
+        " {:.2} GiB used ({:.0}%) / {:.2} GiB total │ Cache: {:.2} GiB │ Free: {:.2} GiB",
+        used_gib,
+        pct.clamp(0.0, 100.0),
+        total_gib,
+        cache_gib,
+        free_gib,
+    ))]);
 
     let ram_legend_line = ratatui::text::Line::from(cfg_select! {
         target_os = "macos" => {
@@ -181,7 +186,11 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let total_sw = app.sys.total_swap();
     let used_sw = app.sys.used_swap();
     let free_sw = total_sw.saturating_sub(used_sw);
-    let pct_sw = if total_sw > 0 { used_sw as f64 / total_sw as f64 * 100.0 } else { 0.0 };
+    let pct_sw = if total_sw > 0 {
+        used_sw as f64 / total_sw as f64 * 100.0
+    } else {
+        0.0
+    };
 
     let used_sw_chars = if total_sw > 0 {
         ((used_sw as f64 / total_sw as f64) * inner_width as f64).round() as usize
@@ -204,15 +213,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    let swap_label_line = ratatui::text::Line::from(vec![
-        ratatui::text::Span::raw(format!(
-            " {:.2} GiB used ({:.0}%) / {:.2} GiB total │ {:.2} GiB free",
-            used_sw as f64 / 1_073_741_824.0,
-            pct_sw.clamp(0.0, 100.0),
-            total_sw as f64 / 1_073_741_824.0,
-            free_sw as f64 / 1_073_741_824.0,
-        ))
-    ]);
+    let swap_label_line = ratatui::text::Line::from(vec![ratatui::text::Span::raw(format!(
+        " {:.2} GiB used ({:.0}%) / {:.2} GiB total │ {:.2} GiB free",
+        used_sw as f64 / 1_073_741_824.0,
+        pct_sw.clamp(0.0, 100.0),
+        total_sw as f64 / 1_073_741_824.0,
+        free_sw as f64 / 1_073_741_824.0,
+    ))]);
 
     let swap_legend_line = ratatui::text::Line::from(vec![
         ratatui::text::Span::raw(" Legend: "),

@@ -1,8 +1,8 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
-    widgets::{Block, Borders, Cell, Row, Table, Sparkline},
-    Frame,
+    widgets::{Block, Borders, Cell, Row, Sparkline, Table},
 };
 
 use crate::app::App;
@@ -15,7 +15,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .constraints([
             Constraint::Length(5), // RX overall sparkline
             Constraint::Length(5), // TX overall sparkline
-            Constraint::Min(0),   // Per-interface list
+            Constraint::Min(0),    // Per-interface list
         ])
         .split(area);
 
@@ -25,7 +25,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let rx_sparkline = Sparkline::default()
         .block(
             Block::default()
-                .title(format!(" Total Download speed: {} ", format_bytes_rate(rx_current)))
+                .title(format!(
+                    " Total Download speed: {} ",
+                    format_bytes_rate(rx_current)
+                ))
                 .title_style(theme::style_title())
                 .borders(Borders::ALL)
                 .border_style(theme::style_border()),
@@ -40,7 +43,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let tx_sparkline = Sparkline::default()
         .block(
             Block::default()
-                .title(format!(" Total Upload speed: {} ", format_bytes_rate(tx_current)))
+                .title(format!(
+                    " Total Upload speed: {} ",
+                    format_bytes_rate(tx_current)
+                ))
                 .title_style(theme::style_title())
                 .borders(Borders::ALL)
                 .border_style(theme::style_border()),
@@ -65,27 +71,40 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     .style(Style::default().bg(theme::header_bg()))
     .height(1);
 
-    let rows: Vec<Row> = app.networks.iter().map(|(name, data)| {
-        let info = app.network_info.get(name);
-        let mac = info.map(|i| i.mac.clone()).unwrap_or_else(|| "-".into());
-        let mtu = info.map(|i| i.mtu.to_string()).unwrap_or_else(|| "-".into());
-        let speed = info.and_then(|i| i.speed).map(|s| format!("{}Mb/s", s)).unwrap_or_else(|| "-".into());
-        let duplex = info.and_then(|i| i.duplex.clone()).unwrap_or_else(|| "-".into());
-        let driver = info.and_then(|i| i.driver.clone()).unwrap_or_else(|| "-".into());
+    let rows: Vec<Row> = app
+        .networks
+        .iter()
+        .map(|(name, data)| {
+            let info = app.network_info.get(name);
+            let mac = info.map(|i| i.mac.clone()).unwrap_or_else(|| "-".into());
+            let mtu = info
+                .map(|i| i.mtu.to_string())
+                .unwrap_or_else(|| "-".into());
+            let speed = info
+                .and_then(|i| i.speed)
+                .map(|s| format!("{}Mb/s", s))
+                .unwrap_or_else(|| "-".into());
+            let duplex = info
+                .and_then(|i| i.duplex.clone())
+                .unwrap_or_else(|| "-".into());
+            let driver = info
+                .and_then(|i| i.driver.clone())
+                .unwrap_or_else(|| "-".into());
 
-        Row::new(vec![
-            Cell::from(name.clone()),
-            Cell::from(mac),
-            Cell::from(mtu),
-            Cell::from(speed),
-            Cell::from(duplex),
-            Cell::from(driver),
-            Cell::from(format_bytes_rate(data.received())),
-            Cell::from(format_bytes_rate(data.transmitted())),
-            Cell::from(format_total_bytes(data.total_received())),
-            Cell::from(format_total_bytes(data.total_transmitted())),
-        ])
-    }).collect();
+            Row::new(vec![
+                Cell::from(name.clone()),
+                Cell::from(mac),
+                Cell::from(mtu),
+                Cell::from(speed),
+                Cell::from(duplex),
+                Cell::from(driver),
+                Cell::from(format_bytes_rate(data.received())),
+                Cell::from(format_bytes_rate(data.transmitted())),
+                Cell::from(format_total_bytes(data.total_received())),
+                Cell::from(format_total_bytes(data.total_transmitted())),
+            ])
+        })
+        .collect();
 
     let table = Table::new(
         rows,

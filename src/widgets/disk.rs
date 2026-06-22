@@ -1,8 +1,8 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Rect},
     style::Style,
     widgets::{Block, Borders, Cell, Row, Table},
-    Frame,
 };
 
 use crate::app::App;
@@ -16,27 +16,36 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().bg(theme::header_bg()))
         .height(1);
 
-    let rows: Vec<Row> = app.disks.iter().map(|disk| {
-        let total = disk.total_space();
-        let avail = disk.available_space();
-        let used = total.saturating_sub(avail);
-        let pct = if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 };
-        
-        // Progress bar string
-        let bar_width = 10;
-        let filled = (pct / 100.0 * bar_width as f64) as usize;
-        let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(bar_width - filled));
+    let rows: Vec<Row> = app
+        .disks
+        .iter()
+        .map(|disk| {
+            let total = disk.total_space();
+            let avail = disk.available_space();
+            let used = total.saturating_sub(avail);
+            let pct = if total > 0 {
+                used as f64 / total as f64 * 100.0
+            } else {
+                0.0
+            };
 
-        Row::new(vec![
-            Cell::from(disk.name().to_string_lossy().to_string()),
-            Cell::from(disk.mount_point().to_string_lossy().to_string()),
-            Cell::from(disk.file_system().to_string_lossy().to_string()),
-            Cell::from(format_size(total)),
-            Cell::from(format_size(used)),
-            Cell::from(format_size(avail)),
-            Cell::from(format!("{} {:.1}%", bar, pct)).style(Style::default().fg(theme::usage_color(pct))),
-        ])
-    }).collect();
+            // Progress bar string
+            let bar_width = 10;
+            let filled = (pct / 100.0 * bar_width as f64) as usize;
+            let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(bar_width - filled));
+
+            Row::new(vec![
+                Cell::from(disk.name().to_string_lossy().to_string()),
+                Cell::from(disk.mount_point().to_string_lossy().to_string()),
+                Cell::from(disk.file_system().to_string_lossy().to_string()),
+                Cell::from(format_size(total)),
+                Cell::from(format_size(used)),
+                Cell::from(format_size(avail)),
+                Cell::from(format!("{} {:.1}%", bar, pct))
+                    .style(Style::default().fg(theme::usage_color(pct))),
+            ])
+        })
+        .collect();
 
     let table = Table::new(
         rows,

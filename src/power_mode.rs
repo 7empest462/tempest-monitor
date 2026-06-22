@@ -7,30 +7,30 @@
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CpuPowerMode {
     LowPower,
-    Normal,       // macOS default / Linux ondemand
-    Balanced,     // Linux: schedutil
-    Performance,  // Linux only
+    Normal,      // macOS default / Linux ondemand
+    Balanced,    // Linux: schedutil
+    Performance, // Linux only
     Unknown,
 }
 
 impl CpuPowerMode {
     pub fn label(self) -> &'static str {
         match self {
-            CpuPowerMode::LowPower    => "Low Power",
-            CpuPowerMode::Normal      => "Normal",
-            CpuPowerMode::Balanced    => "Balanced",
+            CpuPowerMode::LowPower => "Low Power",
+            CpuPowerMode::Normal => "Normal",
+            CpuPowerMode::Balanced => "Balanced",
             CpuPowerMode::Performance => "Performance",
-            CpuPowerMode::Unknown     => "Unknown",
+            CpuPowerMode::Unknown => "Unknown",
         }
     }
 
     pub fn icon(self) -> &'static str {
         match self {
-            CpuPowerMode::LowPower    => "🔋",
-            CpuPowerMode::Normal      => "⚡",
-            CpuPowerMode::Balanced    => "⚖️ ",
+            CpuPowerMode::LowPower => "🔋",
+            CpuPowerMode::Normal => "⚡",
+            CpuPowerMode::Balanced => "⚖️ ",
             CpuPowerMode::Performance => "🚀",
-            CpuPowerMode::Unknown     => "❓",
+            CpuPowerMode::Unknown => "❓",
         }
     }
 }
@@ -74,10 +74,7 @@ pub fn available_modes() -> Vec<CpuPowerMode> {
 /// Detect the current CPU power mode.
 #[cfg(target_os = "macos")]
 pub fn detect_power_mode() -> CpuPowerMode {
-    if let Ok(output) = std::process::Command::new("pmset")
-        .arg("-g")
-        .output()
-    {
+    if let Ok(output) = std::process::Command::new("pmset").arg("-g").output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             let trimmed = line.trim();
@@ -95,17 +92,16 @@ pub fn detect_power_mode() -> CpuPowerMode {
 
 #[cfg(target_os = "linux")]
 pub fn detect_power_mode() -> CpuPowerMode {
-    let governor = std::fs::read_to_string(
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-    ).unwrap_or_default();
+    let governor = std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
+        .unwrap_or_default();
 
     match governor.trim() {
-        "powersave"   => CpuPowerMode::LowPower,
-        "schedutil"   => CpuPowerMode::Balanced,
-        "ondemand"    => CpuPowerMode::Balanced,
-        "conservative"=> CpuPowerMode::Balanced,
+        "powersave" => CpuPowerMode::LowPower,
+        "schedutil" => CpuPowerMode::Balanced,
+        "ondemand" => CpuPowerMode::Balanced,
+        "conservative" => CpuPowerMode::Balanced,
         "performance" => CpuPowerMode::Performance,
-        _             => CpuPowerMode::Unknown,
+        _ => CpuPowerMode::Unknown,
     }
 }
 
@@ -139,7 +135,7 @@ pub fn detect_power_mode() -> CpuPowerMode {
 pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
     let value = match mode {
         CpuPowerMode::LowPower => "1",
-        CpuPowerMode::Normal   => "0",
+        CpuPowerMode::Normal => "0",
         _ => return Err("Unsupported mode on macOS".into()),
     };
 
@@ -149,9 +145,7 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
         .status();
 
     match result {
-        Ok(status) if status.success() => {
-            Ok(format!("✓ Switched to {} mode", mode.label()))
-        }
+        Ok(status) if status.success() => Ok(format!("✓ Switched to {} mode", mode.label())),
         Ok(_) => {
             // Non-interactive failed, try with potential password prompt
             let result2 = std::process::Command::new("sudo")
@@ -159,7 +153,10 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
                 .status();
             match result2 {
                 Ok(s) if s.success() => Ok(format!("✓ Switched to {} mode", mode.label())),
-                Ok(s) => Err(format!("✗ pmset exited with code {}", s.code().unwrap_or(-1))),
+                Ok(s) => Err(format!(
+                    "✗ pmset exited with code {}",
+                    s.code().unwrap_or(-1)
+                )),
                 Err(e) => Err(format!("✗ Failed to run pmset: {}", e)),
             }
         }
@@ -170,13 +167,18 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
 #[cfg(target_os = "linux")]
 pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
     let governor = match mode {
-        CpuPowerMode::LowPower    => "powersave",
-        CpuPowerMode::Balanced    => {
+        CpuPowerMode::LowPower => "powersave",
+        CpuPowerMode::Balanced => {
             // Prefer schedutil if available, fallback to ondemand
             let avail = std::fs::read_to_string(
-                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
-            ).unwrap_or_default();
-            if avail.contains("schedutil") { "schedutil" } else { "ondemand" }
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
+            )
+            .unwrap_or_default();
+            if avail.contains("schedutil") {
+                "schedutil"
+            } else {
+                "ondemand"
+            }
         }
         CpuPowerMode::Performance => "performance",
         _ => return Err("Unsupported mode".into()),
@@ -217,9 +219,18 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
     }
 
     if fail_count == 0 && success_count > 0 {
-        Ok(format!("✓ Set {} cores to {} ({})", success_count, mode.label(), governor))
+        Ok(format!(
+            "✓ Set {} cores to {} ({})",
+            success_count,
+            mode.label(),
+            governor
+        ))
     } else if success_count > 0 {
-        Ok(format!("⚠ Set {}/{} cores (some failed, may need sudo)", success_count, success_count + fail_count))
+        Ok(format!(
+            "⚠ Set {}/{} cores (some failed, may need sudo)",
+            success_count,
+            success_count + fail_count
+        ))
     } else {
         Err("✗ Could not set governor on any core (sudo required)".into())
     }
@@ -231,8 +242,8 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
 pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
     // Well-known Windows power plan GUIDs
     let guid = match mode {
-        CpuPowerMode::LowPower    => "a1841308-3541-4fab-bc81-f71556f20b4a", // Power Saver
-        CpuPowerMode::Balanced    => "381b4222-f694-41f0-9685-ff5bb260df2e", // Balanced
+        CpuPowerMode::LowPower => "a1841308-3541-4fab-bc81-f71556f20b4a", // Power Saver
+        CpuPowerMode::Balanced => "381b4222-f694-41f0-9685-ff5bb260df2e", // Balanced
         CpuPowerMode::Performance => "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", // High Performance
         _ => return Err(format!("Mode '{}' not supported on Windows", mode.label())),
     };
@@ -242,7 +253,10 @@ pub fn set_power_mode(mode: CpuPowerMode) -> Result<String, String> {
         .status()
     {
         Ok(s) if s.success() => Ok(format!("✓ Switched to {} ({})", mode.label(), guid)),
-        Ok(s) => Err(format!("✗ powercfg exited with code {}", s.code().unwrap_or(-1))),
+        Ok(s) => Err(format!(
+            "✗ powercfg exited with code {}",
+            s.code().unwrap_or(-1)
+        )),
         Err(e) => Err(format!("✗ Failed to run powercfg: {}", e)),
     }
 }

@@ -22,13 +22,34 @@ mod unix_impl {
     use super::SignalInfo;
 
     pub const SIGNALS: [SignalInfo; 7] = [
-        SignalInfo { name: "SIGTERM", number: libc::SIGTERM },
-        SignalInfo { name: "SIGKILL", number: libc::SIGKILL },
-        SignalInfo { name: "SIGSTOP", number: libc::SIGSTOP },
-        SignalInfo { name: "SIGCONT", number: libc::SIGCONT },
-        SignalInfo { name: "SIGHUP",  number: libc::SIGHUP },
-        SignalInfo { name: "SIGUSR1", number: libc::SIGUSR1 },
-        SignalInfo { name: "SIGUSR2", number: libc::SIGUSR2 },
+        SignalInfo {
+            name: "SIGTERM",
+            number: libc::SIGTERM,
+        },
+        SignalInfo {
+            name: "SIGKILL",
+            number: libc::SIGKILL,
+        },
+        SignalInfo {
+            name: "SIGSTOP",
+            number: libc::SIGSTOP,
+        },
+        SignalInfo {
+            name: "SIGCONT",
+            number: libc::SIGCONT,
+        },
+        SignalInfo {
+            name: "SIGHUP",
+            number: libc::SIGHUP,
+        },
+        SignalInfo {
+            name: "SIGUSR1",
+            number: libc::SIGUSR1,
+        },
+        SignalInfo {
+            name: "SIGUSR2",
+            number: libc::SIGUSR2,
+        },
     ];
 
     pub fn is_running_as_admin() -> bool {
@@ -54,12 +75,13 @@ mod unix_impl {
 #[cfg(windows)]
 mod windows_impl {
     use super::SignalInfo;
-    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
     // Windows doesn't have Unix signals — one meaningful action: terminate
-    pub const SIGNALS: [SignalInfo; 1] = [
-        SignalInfo { name: "Terminate", number: 0 },
-    ];
+    pub const SIGNALS: [SignalInfo; 1] = [SignalInfo {
+        name: "Terminate",
+        number: 0,
+    }];
 
     /// Check elevation via GetTokenInformation(TokenElevation).
     /// This is the correct method on Vista+ and avoids the unstable PSID/BOOL type paths.
@@ -177,9 +199,5 @@ pub fn get_current_uid() -> u32 {
 
 // Re-export shared types from system_helper for convenience
 pub use crate::system_helper::{
-    get_services,
-    get_memory_segments,
-    get_sockets,
-    ServiceEntry,
-    SocketEntry,
+    ServiceEntry, SocketEntry, get_memory_segments, get_services, get_sockets,
 };

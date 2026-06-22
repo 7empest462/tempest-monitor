@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TelemetrySnapshot {
@@ -20,7 +20,7 @@ pub struct TelemetrySnapshot {
 #[cfg(target_os = "macos")]
 pub fn get_macos_telemetry() -> TelemetrySnapshot {
     let gpu = crate::macos_helper::get_macos_gpu_info(false);
-    
+
     TelemetrySnapshot {
         cpu_usage_avg: 0.0, // sysinfo required
         ram_used_gb: 0.0,
@@ -41,7 +41,7 @@ pub fn get_macos_telemetry() -> TelemetrySnapshot {
 #[cfg(target_os = "linux")]
 pub fn get_linux_telemetry() -> TelemetrySnapshot {
     let gpu = crate::linux_helper::collect_gpu_telemetry();
-    
+
     TelemetrySnapshot {
         cpu_usage_avg: 0.0, // sysinfo required
         ram_used_gb: 0.0,

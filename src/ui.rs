@@ -1,8 +1,8 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
     widgets::{Block, Borders, Paragraph, Tabs},
-    Frame,
 };
 
 use crate::app::{ActiveTab, App};
@@ -16,7 +16,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Header & Tabs
-            Constraint::Min(0),   // Main Content
+            Constraint::Min(0),    // Main Content
             Constraint::Length(1), // Footer
         ])
         .split(size);
@@ -59,29 +59,37 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     match app.active_tab {
-        ActiveTab::Overview  => widgets::overview::render(f, app, area),
-        ActiveTab::Cpu       => widgets::cpu::render(f, app, area),
-        ActiveTab::Memory    => widgets::memory::render(f, app, area),
-        ActiveTab::Disks     => widgets::disk::render(f, app, area),
-        ActiveTab::Network   => widgets::network::render(f, app, area),
+        ActiveTab::Overview => widgets::overview::render(f, app, area),
+        ActiveTab::Cpu => widgets::cpu::render(f, app, area),
+        ActiveTab::Memory => widgets::memory::render(f, app, area),
+        ActiveTab::Disks => widgets::disk::render(f, app, area),
+        ActiveTab::Network => widgets::network::render(f, app, area),
         ActiveTab::Processes => widgets::processes::render(f, app, area),
-        ActiveTab::Gpu       => widgets::gpu::render(f, app, area),
-        ActiveTab::Services  => widgets::services::render(f, app, area),
-        ActiveTab::Sockets   => widgets::sockets::render(f, app, area),
-        ActiveTab::History   => widgets::history::render(f, app, area),
+        ActiveTab::Gpu => widgets::gpu::render(f, app, area),
+        ActiveTab::Services => widgets::services::render(f, app, area),
+        ActiveTab::Sockets => widgets::sockets::render(f, app, area),
+        ActiveTab::History => widgets::history::render(f, app, area),
     }
 }
 
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     let help_text = if app.processes.focus_pid.is_some() {
-        format!(" [Esc] Exit Focus │ [Space] {} │ [+/-] Rate: {}",
+        format!(
+            " [Esc] Exit Focus │ [Space] {} │ [+/-] Rate: {}",
             if app.paused { "Resume" } else { "Pause" },
-            app.tick_rate_label())
+            app.tick_rate_label()
+        )
     } else {
-        let theme_key = if app.active_tab == ActiveTab::Processes { "T" } else { "t" };
-        format!(" [q] Quit │ [?] Help │ [{theme_key}] Theme │ [Space] {} │ [+/-] Rate: {} │ Tabs 1-0",
+        let theme_key = if app.active_tab == ActiveTab::Processes {
+            "T"
+        } else {
+            "t"
+        };
+        format!(
+            " [q] Quit │ [?] Help │ [{theme_key}] Theme │ [Space] {} │ [+/-] Rate: {} │ Tabs 1-0",
             if app.paused { "Resume" } else { "Pause" },
-            app.tick_rate_label())
+            app.tick_rate_label()
+        )
     };
 
     let p = Paragraph::new(help_text).style(theme::style_footer());
@@ -147,7 +155,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
                 .title(" Help / Keybindings ")
                 .title_style(theme::style_title())
                 .borders(Borders::ALL)
-                .border_style(theme::style_border())
+                .border_style(theme::style_border()),
         )
         .wrap(ratatui::widgets::Wrap { trim: false });
 

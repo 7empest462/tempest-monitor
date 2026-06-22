@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, Paragraph, Sparkline, Wrap},
-    Frame,
 };
 
 use crate::app::App;
@@ -14,7 +14,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // system info bar
-            Constraint::Min(0),   // main content
+            Constraint::Min(0),    // main content
         ])
         .split(area);
 
@@ -23,12 +23,12 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let main = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),       // CPU sparkline
-            Constraint::Length(5),       // RAM / SWAP gauges
-            Constraint::Length(5),       // GPU summary
-            Constraint::Length(5),       // Network sparkline
-            Constraint::Length(5),       // Disk summary
-            Constraint::Min(0),         // Sensors + Battery
+            Constraint::Length(5), // CPU sparkline
+            Constraint::Length(5), // RAM / SWAP gauges
+            Constraint::Length(5), // GPU summary
+            Constraint::Length(5), // Network sparkline
+            Constraint::Length(5), // Disk summary
+            Constraint::Min(0),    // Sensors + Battery
         ])
         .split(chunks[1]);
 
@@ -51,19 +51,33 @@ fn render_system_bar(f: &mut Frame, #[allow(unused_variables)] app: &App, area: 
 
     #[cfg(not(windows))]
     let load = System::load_average();
-    
+
     let is_root = crate::platform::is_running_as_admin();
-    
+
     let mut spans = vec![
-        Span::styled(format!(" {} ", hostname), Style::default().fg(theme::accent()).add_modifier(ratatui::style::Modifier::BOLD)),
+        Span::styled(
+            format!(" {} ", hostname),
+            Style::default()
+                .fg(theme::accent())
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ),
         Span::styled("│ ", Style::default().fg(theme::fg_muted())),
-        Span::styled(format!("{} ", os_name), Style::default().fg(theme::title_fg())),
+        Span::styled(
+            format!("{} ", os_name),
+            Style::default().fg(theme::title_fg()),
+        ),
         Span::styled("│ ", Style::default().fg(theme::fg_muted())),
         Span::styled("Kernel: ", Style::default().fg(theme::fg_muted())),
-        Span::styled(format!("{} ", kernel), Style::default().fg(theme::title_fg())),
+        Span::styled(
+            format!("{} ", kernel),
+            Style::default().fg(theme::title_fg()),
+        ),
         Span::styled("│ ", Style::default().fg(theme::fg_muted())),
         Span::styled("Uptime: ", Style::default().fg(theme::fg_muted())),
-        Span::styled(format!("{}h {:02}m ", hours, mins), Style::default().fg(theme::accent2())),
+        Span::styled(
+            format!("{}h {:02}m ", hours, mins),
+            Style::default().fg(theme::accent2()),
+        ),
         Span::styled("│ ", Style::default().fg(theme::fg_muted())),
         cfg_select! {
             target_os = "windows" => {
@@ -155,7 +169,10 @@ fn render_mem_gauges(f: &mut Frame, app: &App, area: Rect) {
     let active = app.mem_segments.active;
     let wired = app.mem_segments.wired;
     let cache = app.mem_segments.cache;
-    let free = total.saturating_sub(active).saturating_sub(wired).saturating_sub(cache);
+    let free = total
+        .saturating_sub(active)
+        .saturating_sub(wired)
+        .saturating_sub(cache);
 
     let active_chars = if total > 0 {
         ((active as f64 / total as f64) * inner_width as f64).round() as usize
@@ -205,18 +222,20 @@ fn render_mem_gauges(f: &mut Frame, app: &App, area: Rect) {
     let total_gib = total as f64 / 1_073_741_824.0;
     let cache_gib = cache as f64 / 1_073_741_824.0;
     let free_gib = free as f64 / 1_073_741_824.0;
-    let pct = if total > 0 { (active + wired) as f64 / total as f64 * 100.0 } else { 0.0 };
+    let pct = if total > 0 {
+        (active + wired) as f64 / total as f64 * 100.0
+    } else {
+        0.0
+    };
 
-    let ram_label_line = ratatui::text::Line::from(vec![
-        ratatui::text::Span::raw(format!(
-            " {:.1} / {:.1} GiB ({:.0}%) │ Cache: {:.1}G │ Free: {:.1}G",
-            used_gib,
-            total_gib,
-            pct.clamp(0.0, 100.0),
-            cache_gib,
-            free_gib,
-        ))
-    ]);
+    let ram_label_line = ratatui::text::Line::from(vec![ratatui::text::Span::raw(format!(
+        " {:.1} / {:.1} GiB ({:.0}%) │ Cache: {:.1}G │ Free: {:.1}G",
+        used_gib,
+        total_gib,
+        pct.clamp(0.0, 100.0),
+        cache_gib,
+        free_gib,
+    ))]);
 
     let ram_paragraph = ratatui::widgets::Paragraph::new(vec![
         ratatui::text::Line::from(ram_spans),
@@ -235,7 +254,11 @@ fn render_mem_gauges(f: &mut Frame, app: &App, area: Rect) {
     let total_sw = app.sys.total_swap();
     let used_sw = app.sys.used_swap();
     let free_sw = total_sw.saturating_sub(used_sw);
-    let pct_sw = if total_sw > 0 { used_sw as f64 / total_sw as f64 * 100.0 } else { 0.0 };
+    let pct_sw = if total_sw > 0 {
+        used_sw as f64 / total_sw as f64 * 100.0
+    } else {
+        0.0
+    };
 
     let used_sw_chars = if total_sw > 0 {
         ((used_sw as f64 / total_sw as f64) * inner_width as f64).round() as usize
@@ -258,15 +281,13 @@ fn render_mem_gauges(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    let swap_label_line = ratatui::text::Line::from(vec![
-        ratatui::text::Span::raw(format!(
-            " {:.1} / {:.1} GiB ({:.0}%) │ Free: {:.1}G",
-            used_sw as f64 / 1_073_741_824.0,
-            total_sw as f64 / 1_073_741_824.0,
-            pct_sw.clamp(0.0, 100.0),
-            free_sw as f64 / 1_073_741_824.0,
-        ))
-    ]);
+    let swap_label_line = ratatui::text::Line::from(vec![ratatui::text::Span::raw(format!(
+        " {:.1} / {:.1} GiB ({:.0}%) │ Free: {:.1}G",
+        used_sw as f64 / 1_073_741_824.0,
+        total_sw as f64 / 1_073_741_824.0,
+        pct_sw.clamp(0.0, 100.0),
+        free_sw as f64 / 1_073_741_824.0,
+    ))]);
 
     let swap_paragraph = ratatui::widgets::Paragraph::new(vec![
         ratatui::text::Line::from(swap_spans),
@@ -290,7 +311,7 @@ fn render_gpu_mini(f: &mut Frame, app: &App, area: Rect) {
 
     let gpu_data: Vec<u64> = app.gpu_history.iter().copied().collect();
     let current = gpu_data.last().copied().unwrap_or(0);
-    
+
     let model = if !app.gpu_model.is_empty() {
         format!(" GPU ({}) ", app.gpu_model)
     } else {
@@ -312,14 +333,24 @@ fn render_gpu_mini(f: &mut Frame, app: &App, area: Rect) {
 
     let mut spans = vec![
         Span::styled(" Usage: ", Style::default().fg(theme::fg_muted())),
-        Span::styled(format!("{current}%"), Style::default().fg(theme::usage_color(current as f64))),
+        Span::styled(
+            format!("{current}%"),
+            Style::default().fg(theme::usage_color(current as f64)),
+        ),
     ];
     if let Some(pwr) = app.gpu_power_mw
-        && pwr > 0.0 {
-            spans.push(Span::styled(" │ Power: ", Style::default().fg(theme::fg_muted())));
-            spans.push(Span::styled(format!("{:.1}W", pwr / 1000.0), Style::default().fg(theme::accent2())));
+        && pwr > 0.0
+    {
+        spans.push(Span::styled(
+            " │ Power: ",
+            Style::default().fg(theme::fg_muted()),
+        ));
+        spans.push(Span::styled(
+            format!("{:.1}W", pwr / 1000.0),
+            Style::default().fg(theme::accent2()),
+        ));
     }
-    
+
     let p = Paragraph::new(Line::from(spans))
         .block(
             Block::default()
@@ -373,18 +404,36 @@ fn render_disk_mini(f: &mut Frame, app: &App, area: Rect) {
         let total = disk.total_space();
         let avail = disk.available_space();
         let used = total.saturating_sub(avail);
-        let pct = if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 };
+        let pct = if total > 0 {
+            used as f64 / total as f64 * 100.0
+        } else {
+            0.0
+        };
         lines.push(Line::from(vec![
-            Span::styled(format!(" {} ", disk.mount_point().to_string_lossy()), Style::default().fg(theme::accent())),
-            Span::styled(format!("({}) ", disk.file_system().to_string_lossy()), Style::default().fg(theme::fg_muted())),
-            Span::raw(format!("{:.1}/{:.1} GiB ", used as f64 / 1_073_741_824.0, total as f64 / 1_073_741_824.0)),
-            Span::styled(format!("({:.0}%)", pct), Style::default().fg(theme::usage_color(pct))),
+            Span::styled(
+                format!(" {} ", disk.mount_point().to_string_lossy()),
+                Style::default().fg(theme::accent()),
+            ),
+            Span::styled(
+                format!("({}) ", disk.file_system().to_string_lossy()),
+                Style::default().fg(theme::fg_muted()),
+            ),
+            Span::raw(format!(
+                "{:.1}/{:.1} GiB ",
+                used as f64 / 1_073_741_824.0,
+                total as f64 / 1_073_741_824.0
+            )),
+            Span::styled(
+                format!("({:.0}%)", pct),
+                Style::default().fg(theme::usage_color(pct)),
+            ),
         ]));
     }
     if lines.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled(" No disks detected", Style::default().fg(theme::fg_muted()))
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            " No disks detected",
+            Style::default().fg(theme::fg_muted()),
+        )]));
     }
     let p = Paragraph::new(lines)
         .block(
@@ -415,14 +464,21 @@ fn render_sensors_battery(f: &mut Frame, app: &App, area: Rect) {
         // Scale 35°C (cool / 0% gradient) to 80°C (hot / 100% gradient)
         let pct = ((temp - 35.0) / (80.0 - 35.0) * 100.0).clamp(0.0, 100.0);
         sensor_lines.push(Line::from(vec![
-            Span::styled(format!(" {}: ", label), Style::default().fg(theme::fg_muted())),
-            Span::styled(format!("{temp:.1}°C"), Style::default().fg(theme::usage_color(pct))),
+            Span::styled(
+                format!(" {}: ", label),
+                Style::default().fg(theme::fg_muted()),
+            ),
+            Span::styled(
+                format!("{temp:.1}°C"),
+                Style::default().fg(theme::usage_color(pct)),
+            ),
         ]));
     }
     if sensor_lines.is_empty() {
-        sensor_lines.push(Line::from(vec![
-            Span::styled(" No temperature sensors detected", Style::default().fg(theme::fg_muted()))
-        ]));
+        sensor_lines.push(Line::from(vec![Span::styled(
+            " No temperature sensors detected",
+            Style::default().fg(theme::fg_muted()),
+        )]));
     }
     let p = Paragraph::new(sensor_lines)
         .block(
@@ -445,15 +501,16 @@ fn render_sensors_battery(f: &mut Frame, app: &App, area: Rect) {
                 format!("{h}h {m:02}m remaining")
             })
             .unwrap_or_default();
-        format!(
-            " {:.0}% │ {} │ {}",
-            bat.percent, bat.state, time_str
-        )
+        format!(" {:.0}% │ {} │ {}", bat.percent, bat.state, time_str)
     } else {
         " No battery / AC Power".into()
     };
 
-    let bat_pct = app.battery_info.as_ref().map(|b| b.percent).unwrap_or(100.0);
+    let bat_pct = app
+        .battery_info
+        .as_ref()
+        .map(|b| b.percent)
+        .unwrap_or(100.0);
     let gauge = Gauge::default()
         .block(
             Block::default()
@@ -481,4 +538,3 @@ pub fn format_bytes_rate(bytes: u64) -> String {
         format!("{bytes} B/s")
     }
 }
-

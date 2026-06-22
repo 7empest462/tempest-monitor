@@ -1,12 +1,12 @@
 #![cfg(target_os = "linux")]
 
-use ethtool::{new_connection, EthtoolAttr, EthtoolLinkModeAttr, EthtoolLinkModeDuplex};
-use nvml_wrapper::Nvml;
-use nvml_wrapper::enum_wrappers::device::{TemperatureSensor, Clock};
+use ethtool::{EthtoolAttr, EthtoolLinkModeAttr, EthtoolLinkModeDuplex, new_connection};
 use futures::stream::TryStreamExt;
+use nvml_wrapper::Nvml;
+use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
+use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::time::Instant;
-use parking_lot::Mutex;
 
 pub struct LinuxInterfaceInfo {
     pub speed: Option<u32>,
@@ -26,7 +26,10 @@ pub fn get_process_metadata(pid: i32) -> Option<ProcessMetadata> {
         if parts.len() > 19 {
             let priority = parts[17].parse().unwrap_or(0);
             let thread_count = parts[19].parse().unwrap_or(0);
-            return Some(ProcessMetadata { thread_count, priority });
+            return Some(ProcessMetadata {
+                thread_count,
+                priority,
+            });
         }
     }
     None
@@ -83,8 +86,9 @@ pub fn is_steamos() -> bool {
     std::fs::read_to_string("/etc/os-release")
         .map(|s| {
             let s_low = s.to_lowercase();
-            s_low.contains("id=steamos") || s_low.contains("id=\"steamos\"") || 
-            (s_low.contains("id_like=arch") && s_low.contains("steamos"))
+            s_low.contains("id=steamos")
+                || s_low.contains("id=\"steamos\"")
+                || (s_low.contains("id_like=arch") && s_low.contains("steamos"))
         })
         .unwrap_or(false)
 }
@@ -154,7 +158,9 @@ pub fn get_amdgpu_metrics_usage() -> Option<i32> {
 
             let path = entry.path().join("device/gpu_metrics");
             if let Ok(data) = std::fs::read(&path) {
-                if data.len() < 4 { continue; }
+                if data.len() < 4 {
+                    continue;
+                }
                 let format_rev = data[2];
                 let content_rev = data[3];
                 let primary_offset = match (format_rev, content_rev) {
@@ -166,12 +172,16 @@ pub fn get_amdgpu_metrics_usage() -> Option<i32> {
                 };
                 if data.len() >= primary_offset + 2 {
                     let val = u16::from_le_bytes([data[primary_offset], data[primary_offset + 1]]);
-                    if val != 0xFFFF && val <= 100 { return Some(val as i32); }
+                    if val != 0xFFFF && val <= 100 {
+                        return Some(val as i32);
+                    }
                 }
                 for &off in &[24, 28, 30, 32, 14, 16] {
                     if data.len() >= off + 2 {
                         let val = u16::from_le_bytes([data[off], data[off + 1]]);
-                        if val > 0 && val <= 100 { return Some(val as i32); }
+                        if val > 0 && val <= 100 {
+                            return Some(val as i32);
+                        }
                     }
                 }
             }
@@ -252,7 +262,11 @@ pub fn get_interface_extra_info(iface: &str) -> Option<LinuxInterfaceInfo> {
                 }
             }
 
-            Some(LinuxInterfaceInfo { speed, duplex, driver: None })
+            Some(LinuxInterfaceInfo {
+                speed,
+                duplex,
+                driver: None,
+            })
         })
     })
 }
@@ -267,9 +281,12 @@ pub fn get_nvidia_gpu_info() -> Vec<NvidiaGpuInfo> {
     let device_count = nvml.device_count().unwrap_or(0);
     for i in 0..device_count {
         if let Ok(device) = nvml.device_by_index(i) {
-            let name = device.name().unwrap_or_else(|_| "Unknown NVIDIA GPU".into());
+            let name = device
+                .name()
+                .unwrap_or_else(|_| "Unknown NVIDIA GPU".into());
             let temperature = device.temperature(TemperatureSensor::Gpu).unwrap_or(0);
-            let memory_used_pct = device.memory_info()
+            let memory_used_pct = device
+                .memory_info()
                 .map(|m| (m.used as f64 / m.total as f64 * 100.0).clamp(0.0, 100.0))
                 .unwrap_or(0.0);
             let fan_speed_pct = device.fan_speed(0).unwrap_or(0);
@@ -293,24 +310,34 @@ pub fn get_nvidia_gpu_info() -> Vec<NvidiaGpuInfo> {
 pub fn get_linux_gpu_load() -> i32 {
     // 0. Specialized SteamOS / AMD
     if is_steamos() {
-        if let Some(usage) = get_amdgpu_metrics_usage() { return usage; }
+        if let Some(usage) = get_amdgpu_metrics_usage() {
+            return usage;
+        }
     }
     // 1. Try Nvidia
     if let Ok(nvml) = Nvml::init() {
         if let Ok(device) = nvml.device_by_index(0) {
-            if let Ok(util) = device.utilization_rates() { return util.gpu as i32; }
+            if let Ok(util) = device.utilization_rates() {
+                return util.gpu as i32;
+            }
         }
     }
     // 2. Scan DRM (Intel/AMD fallback)
     if let Ok(entries) = std::fs::read_dir("/sys/class/drm") {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if !name.starts_with("card") || name.len() < 5 { continue; }
+            if !name.starts_with("card") || name.len() < 5 {
+                continue;
+            }
             let base = entry.path();
             let device_path = base.join("device");
             for p in &[&device_path, &base] {
                 if let Ok(content) = std::fs::read_to_string(p.join("gpu_busy_percent")) {
-                    if let Ok(val) = content.trim().parse::<i32>() { if val > 0 { return val; } }
+                    if let Ok(val) = content.trim().parse::<i32>() {
+                        if val > 0 {
+                            return val;
+                        }
+                    }
                 }
             }
             // Intel RC6 residency logic
@@ -318,7 +345,9 @@ pub fn get_linux_gpu_load() -> i32 {
             if let Ok(content) = std::fs::read_to_string(&rc6_path) {
                 if let Ok(residency) = content.trim().parse::<u64>() {
                     let mut state_lock = INTEL_GPU_STATE.lock();
-                    if state_lock.is_none() { *state_lock = Some(HashMap::new()); }
+                    if state_lock.is_none() {
+                        *state_lock = Some(HashMap::new());
+                    }
                     if let Some(map) = state_lock.as_mut() {
                         let now = Instant::now();
                         if let Some((last_res, last_time)) = map.get(&name) {
@@ -326,10 +355,13 @@ pub fn get_linux_gpu_load() -> i32 {
                             let res_diff = residency.saturating_sub(*last_res);
                             if time_diff > 500 {
                                 map.insert(name, (residency, now));
-                                let idle_frac = (res_diff as f64 / time_diff as f64).clamp(0.0, 1.0);
+                                let idle_frac =
+                                    (res_diff as f64 / time_diff as f64).clamp(0.0, 1.0);
                                 return ((1.0 - idle_frac) * 100.0) as i32;
                             }
-                        } else { map.insert(name, (residency, now)); }
+                        } else {
+                            map.insert(name, (residency, now));
+                        }
                     }
                 }
             }
@@ -341,7 +373,7 @@ pub fn get_linux_gpu_load() -> i32 {
 /// Helper to get a full snapshot of GPU telemetry on Linux.
 pub fn collect_gpu_telemetry() -> LinuxGpuTelemetry {
     let mut tel = LinuxGpuTelemetry::default();
-    
+
     // 1. Basic identification
     if let Some(gpu) = detect_gpu_from_sysfs() {
         tel.model = gpu.model_name;

@@ -1,26 +1,20 @@
-use std::io;
-use std::time::Duration;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+use std::io;
+use std::time::Duration;
 
 #[cfg(feature = "database")]
 use tempest_monitor::db;
-use tempest_monitor::{
-    App,
-    app::ActiveTab,
-    cli::CliArgs,
-    config::TempestConfig,
-    ui,
-    input,
-    alerts,
-};
 #[cfg(any(feature = "metrics", feature = "export"))]
 use tempest_monitor::export;
+use tempest_monitor::{
+    App, alerts, app::ActiveTab, cli::CliArgs, config::TempestConfig, input, ui,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,11 +28,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         2 => "debug",
         _ => "trace",
     };
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(log_level),
-    )
-    .format_timestamp_millis()
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
+        .format_timestamp_millis()
+        .init();
 
     log::info!("Starting Tempest Monitor v{}", env!("CARGO_PKG_VERSION"));
 
@@ -82,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new_with_config(&cli, &cfg, cli.config.clone());
-    
+
     // Handle One-shot Exports
     if let Some(ref _path) = cli.export_json {
         app.refresh();
@@ -94,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         #[cfg(not(any(feature = "metrics", feature = "export")))]
         println!("JSON export requires 'metrics' or 'export' feature.");
-        
+
         return Ok(());
     }
 
@@ -145,10 +137,14 @@ async fn run_app(
 
     loop {
         // Load history snapshots immediately on tab switch
-        if app.active_tab == ActiveTab::History && (last_tab != ActiveTab::History || app.history.snapshots.is_empty()) {
+        if app.active_tab == ActiveTab::History
+            && (last_tab != ActiveTab::History || app.history.snapshots.is_empty())
+        {
             if let Ok(snaps) = db.get_recent_snapshots(50).await {
                 app.history.snapshots = snaps;
-                if app.history.selected >= app.history.snapshots.len() && !app.history.snapshots.is_empty() {
+                if app.history.selected >= app.history.snapshots.len()
+                    && !app.history.snapshots.is_empty()
+                {
                     app.history.selected = app.history.snapshots.len() - 1;
                 }
             }
@@ -157,14 +153,16 @@ async fn run_app(
 
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        let timeout = app.tick_rate
+        let timeout = app
+            .tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or(Duration::from_secs(0));
 
         if event::poll(timeout)?
             && let event::Event::Key(key) = event::read()?
-            && !input::handle_key(key, &mut app) {
-                break;
+            && !input::handle_key(key, &mut app)
+        {
+            break;
         }
 
         // Handle editor request (suspend TUI, spawn editor, resume TUI)
@@ -175,13 +173,15 @@ async fn run_app(
         if last_tick.elapsed() >= app.tick_rate {
             app.refresh();
             app.update_focus_history();
-            
+
             // Periodic history refresh
             if app.active_tab == ActiveTab::History
                 && let Ok(snaps) = db.get_recent_snapshots(50).await
             {
                 app.history.snapshots = snaps;
-                if app.history.selected >= app.history.snapshots.len() && !app.history.snapshots.is_empty() {
+                if app.history.selected >= app.history.snapshots.len()
+                    && !app.history.snapshots.is_empty()
+                {
                     app.history.selected = app.history.snapshots.len() - 1;
                 }
             }
@@ -198,7 +198,8 @@ async fn run_app(
                     let data = export::export_json(&app);
                     tokio::spawn(async move {
                         let client = reqwest::Client::new();
-                        let _ = client.post(url)
+                        let _ = client
+                            .post(url)
                             .header("Content-Type", "application/json")
                             .body(data)
                             .send()
@@ -241,14 +242,16 @@ async fn run_app_no_db(
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        let timeout = app.tick_rate
+        let timeout = app
+            .tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or(Duration::from_secs(0));
 
         if event::poll(timeout)?
             && let event::Event::Key(key) = event::read()?
-            && !input::handle_key(key, &mut app) {
-                break;
+            && !input::handle_key(key, &mut app)
+        {
+            break;
         }
 
         // Handle editor request (suspend TUI, spawn editor, resume TUI)
@@ -259,7 +262,7 @@ async fn run_app_no_db(
         if last_tick.elapsed() >= app.tick_rate {
             app.refresh();
             app.update_focus_history();
-            
+
             // Phase 13: Alerting
             alert_engine.check_rules(&app, &app.config.alerts);
 
@@ -286,9 +289,7 @@ fn spawn_editor(
     terminal.show_cursor()?;
 
     // 2. Spawn the editor and wait for it to finish
-    let status = std::process::Command::new(&editor)
-        .arg(path)
-        .status();
+    let status = std::process::Command::new(&editor).arg(path).status();
 
     if let Err(e) = &status {
         eprintln!("Failed to open editor '{}': {}", editor, e);

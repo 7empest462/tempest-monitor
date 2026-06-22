@@ -1,6 +1,6 @@
 // Unix-only imports — gated so they don't break Windows compilation
 #[cfg(unix)]
-use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
+use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, get_sockets_info};
 
 // ── Service entry (from launchctl / systemctl / SCM) ─────────────────────────
 
@@ -56,13 +56,17 @@ pub fn get_services() -> Vec<ServiceEntry> {
 #[cfg(target_os = "linux")]
 pub fn get_services() -> Vec<ServiceEntry> {
     let try_systemctl = |extra_args: &[&str]| -> Vec<ServiceEntry> {
-        let mut args = vec!["list-units", "--type=service", "--all", "--no-pager", "--no-legend", "--plain"];
+        let mut args = vec![
+            "list-units",
+            "--type=service",
+            "--all",
+            "--no-pager",
+            "--no-legend",
+            "--plain",
+        ];
         args.extend_from_slice(extra_args);
 
-        let output = match std::process::Command::new("systemctl")
-            .args(&args)
-            .output()
-        {
+        let output = match std::process::Command::new("systemctl").args(&args).output() {
             Ok(o) => o,
             Err(_) => return Vec::new(),
         };
@@ -99,9 +103,8 @@ pub fn get_services() -> Vec<ServiceEntry> {
 #[cfg(windows)]
 pub fn get_services() -> Vec<ServiceEntry> {
     use windows::Win32::System::Services::{
-        OpenSCManagerW, EnumServicesStatusExW, CloseServiceHandle,
-        SC_MANAGER_ENUMERATE_SERVICE, SERVICE_WIN32, SERVICE_STATE_ALL,
-        SC_ENUM_PROCESS_INFO, ENUM_SERVICE_STATUS_PROCESSW,
+        CloseServiceHandle, ENUM_SERVICE_STATUS_PROCESSW, EnumServicesStatusExW, OpenSCManagerW,
+        SC_ENUM_PROCESS_INFO, SC_MANAGER_ENUMERATE_SERVICE, SERVICE_STATE_ALL, SERVICE_WIN32,
     };
     use windows::core::PCWSTR;
 
@@ -109,7 +112,8 @@ pub fn get_services() -> Vec<ServiceEntry> {
 
     unsafe {
         // Open the Service Control Manager with read access
-        let scm = match OpenSCManagerW(PCWSTR::null(), PCWSTR::null(), SC_MANAGER_ENUMERATE_SERVICE) {
+        let scm = match OpenSCManagerW(PCWSTR::null(), PCWSTR::null(), SC_MANAGER_ENUMERATE_SERVICE)
+        {
             Ok(h) => h,
             Err(_) => return entries,
         };
@@ -161,7 +165,9 @@ pub fn get_services() -> Vec<ServiceEntry> {
                 // Convert the wide-string service name to a Rust String
                 let name_ptr = svc.lpServiceName.as_ptr();
                 let mut len = 0;
-                while *name_ptr.add(len) != 0 { len += 1; }
+                while *name_ptr.add(len) != 0 {
+                    len += 1;
+                }
                 let name = String::from_utf16_lossy(std::slice::from_raw_parts(name_ptr, len));
 
                 let state = svc.ServiceStatusProcess.dwCurrentState.0;
@@ -170,7 +176,11 @@ pub fn get_services() -> Vec<ServiceEntry> {
                 let pid = svc.ServiceStatusProcess.dwProcessId;
 
                 entries.push(ServiceEntry {
-                    pid: if is_running && pid > 0 { Some(pid as i32) } else { None },
+                    pid: if is_running && pid > 0 {
+                        Some(pid as i32)
+                    } else {
+                        None
+                    },
                     status: if is_running { 0 } else { -1 },
                     label: name,
                 });
@@ -189,7 +199,6 @@ pub fn get_services() -> Vec<ServiceEntry> {
     Vec::new()
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // get_sockets()
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -205,14 +214,24 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
         for info in sockets {
             let (proto, local_addr, foreign_addr, state, pid) = match info.protocol_socket_info {
                 ProtocolSocketInfo::Tcp(tcp) => (
-                    if tcp.local_addr.is_ipv4() { "tcp4" } else { "tcp6" }.to_string(),
+                    if tcp.local_addr.is_ipv4() {
+                        "tcp4"
+                    } else {
+                        "tcp6"
+                    }
+                    .to_string(),
                     format!("{}:{}", tcp.local_addr, tcp.local_port),
                     format!("{}:{}", tcp.remote_addr, tcp.remote_port),
                     format!("{:?}", tcp.state).to_uppercase(),
                     info.associated_pids.first().copied().map(|p| p as i32),
                 ),
                 ProtocolSocketInfo::Udp(udp) => (
-                    if udp.local_addr.is_ipv4() { "udp4" } else { "udp6" }.to_string(),
+                    if udp.local_addr.is_ipv4() {
+                        "udp4"
+                    } else {
+                        "udp6"
+                    }
+                    .to_string(),
                     format!("{}:{}", udp.local_addr, udp.local_port),
                     "*:*".to_string(),
                     "NONE".to_string(),
@@ -247,14 +266,12 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
 /// Returns full connection info including PID, local/remote address:port, and state — no external tools.
 #[cfg(windows)]
 pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
+    use std::net::Ipv4Addr;
     use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, GetExtendedUdpTable,
-        MIB_TCPTABLE_OWNER_PID, MIB_UDPTABLE_OWNER_PID,
-        TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
-        MIB_TCP_STATE,
+        GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP_STATE, MIB_TCPTABLE_OWNER_PID,
+        MIB_UDPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
     };
     use windows::Win32::Networking::WinSock::AF_INET;
-    use std::net::Ipv4Addr;
 
     let mut entries = Vec::new();
 
@@ -263,9 +280,12 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
         let mut tcp_size: u32 = 0;
         // First call to size-probe
         let _ = GetExtendedTcpTable(
-            None, &mut tcp_size, false,
+            None,
+            &mut tcp_size,
+            false,
             AF_INET.0 as u32,
-            TCP_TABLE_OWNER_PID_ALL, 0,
+            TCP_TABLE_OWNER_PID_ALL,
+            0,
         );
 
         if tcp_size > 0 {
@@ -292,24 +312,27 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
                     let pid = row.dwOwningPid as i32;
 
                     let state = match MIB_TCP_STATE(row.dwState as i32) {
-                        s if s == MIB_TCP_STATE(1)  => "CLOSED",
-                        s if s == MIB_TCP_STATE(2)  => "LISTEN",
-                        s if s == MIB_TCP_STATE(3)  => "SYN_SENT",
-                        s if s == MIB_TCP_STATE(4)  => "SYN_RECEIVED",
-                        s if s == MIB_TCP_STATE(5)  => "ESTABLISHED",
-                        s if s == MIB_TCP_STATE(6)  => "FIN_WAIT1",
-                        s if s == MIB_TCP_STATE(7)  => "FIN_WAIT2",
-                        s if s == MIB_TCP_STATE(8)  => "CLOSE_WAIT",
-                        s if s == MIB_TCP_STATE(9)  => "CLOSING",
+                        s if s == MIB_TCP_STATE(1) => "CLOSED",
+                        s if s == MIB_TCP_STATE(2) => "LISTEN",
+                        s if s == MIB_TCP_STATE(3) => "SYN_SENT",
+                        s if s == MIB_TCP_STATE(4) => "SYN_RECEIVED",
+                        s if s == MIB_TCP_STATE(5) => "ESTABLISHED",
+                        s if s == MIB_TCP_STATE(6) => "FIN_WAIT1",
+                        s if s == MIB_TCP_STATE(7) => "FIN_WAIT2",
+                        s if s == MIB_TCP_STATE(8) => "CLOSE_WAIT",
+                        s if s == MIB_TCP_STATE(9) => "CLOSING",
                         s if s == MIB_TCP_STATE(10) => "LAST_ACK",
                         s if s == MIB_TCP_STATE(11) => "TIME_WAIT",
                         s if s == MIB_TCP_STATE(12) => "DELETE_TCB",
                         _ => "UNKNOWN",
                     };
 
-                    if state == "CLOSED" { continue; }
+                    if state == "CLOSED" {
+                        continue;
+                    }
 
-                    let process_name = sys.process(sysinfo::Pid::from(pid as usize))
+                    let process_name = sys
+                        .process(sysinfo::Pid::from(pid as usize))
                         .map(|p| p.name().to_string_lossy().to_string())
                         .unwrap_or_else(|| "-".to_string());
 
@@ -328,9 +351,12 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
         // ── UDP (IPv4) ──────────────────────────────────────────────────────
         let mut udp_size: u32 = 0;
         let _ = GetExtendedUdpTable(
-            None, &mut udp_size, false,
+            None,
+            &mut udp_size,
+            false,
             AF_INET.0 as u32,
-            UDP_TABLE_OWNER_PID, 0,
+            UDP_TABLE_OWNER_PID,
+            0,
         );
 
         if udp_size > 0 {
@@ -354,7 +380,8 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
                     let local_port = u16::from_be(row.dwLocalPort as u16);
                     let pid = row.dwOwningPid as i32;
 
-                    let process_name = sys.process(sysinfo::Pid::from(pid as usize))
+                    let process_name = sys
+                        .process(sysinfo::Pid::from(pid as usize))
                         .map(|p| p.name().to_string_lossy().to_string())
                         .unwrap_or_else(|| "-".to_string());
 
@@ -378,7 +405,6 @@ pub fn get_sockets(sys: &sysinfo::System) -> Vec<SocketEntry> {
 pub fn get_sockets(_sys: &sysinfo::System) -> Vec<SocketEntry> {
     Vec::new()
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Stacked memory segments
@@ -450,8 +476,8 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
         // This guarantees all bars sum to 100% and "active" matches AM "Memory Used − Wired".
 
         let wired_pages = stats.get("Pages wired down").copied().unwrap_or(0);
-        let free_pages  = stats.get("Pages free").copied().unwrap_or(0);
-        let spec_pages  = stats.get("Pages speculative").copied().unwrap_or(0);
+        let free_pages = stats.get("Pages free").copied().unwrap_or(0);
+        let spec_pages = stats.get("Pages speculative").copied().unwrap_or(0);
         // Prefer modern key; fall back to older "Pages external" if needed
         let cache_pages = stats
             .get("File-backed pages")
@@ -475,15 +501,24 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
                 std::ptr::null_mut(),
                 0,
             );
-            if ret == 0 && memsize > 0 { memsize } else { sys.total_memory() }
+            if ret == 0 && memsize > 0 {
+                memsize
+            } else {
+                sys.total_memory()
+            }
         };
 
         let wired = wired_pages.saturating_mul(page_size);
         let cache = cache_pages.saturating_mul(page_size);
-        let free  = free_pages.saturating_add(spec_pages).saturating_mul(page_size);
+        let free = free_pages
+            .saturating_add(spec_pages)
+            .saturating_mul(page_size);
 
         // Residual = App Memory + Compressed  (= Activity Monitor "Memory Used" − Wired)
-        let active = total.saturating_sub(wired).saturating_sub(cache).saturating_sub(free);
+        let active = total
+            .saturating_sub(wired)
+            .saturating_sub(cache)
+            .saturating_sub(free);
 
         Some(MemorySegments {
             total,
@@ -516,13 +551,13 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
                 if let Ok(val_kb) = parts[1].parse::<u64>() {
                     let val_bytes = val_kb * 1024;
                     match key {
-                        "MemTotal"      => mem_total      = Some(val_bytes),
-                        "MemFree"       => mem_free        = Some(val_bytes),
-                        "Active"        => active          = Some(val_bytes),
-                        "Buffers"       => buffers         = Some(val_bytes),
-                        "Cached"        => cached          = Some(val_bytes),
-                        "SReclaimable"  => sreclaimable    = Some(val_bytes),
-                        "Shmem"         => shmem           = Some(val_bytes),
+                        "MemTotal" => mem_total = Some(val_bytes),
+                        "MemFree" => mem_free = Some(val_bytes),
+                        "Active" => active = Some(val_bytes),
+                        "Buffers" => buffers = Some(val_bytes),
+                        "Cached" => cached = Some(val_bytes),
+                        "SReclaimable" => sreclaimable = Some(val_bytes),
+                        "Shmem" => shmem = Some(val_bytes),
                         _ => {}
                     }
                 }
@@ -530,10 +565,11 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
         }
 
         let total = mem_total.unwrap_or_else(|| sys.total_memory());
-        let free  = mem_free.unwrap_or(0);
-        let act   = active.unwrap_or(0);
-        let buf   = buffers.unwrap_or(0);
-        let c     = cached.unwrap_or(0)
+        let free = mem_free.unwrap_or(0);
+        let act = active.unwrap_or(0);
+        let buf = buffers.unwrap_or(0);
+        let c = cached
+            .unwrap_or(0)
             .saturating_add(sreclaimable.unwrap_or(0))
             .saturating_sub(shmem.unwrap_or(0));
 
@@ -553,8 +589,8 @@ pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
 /// Maps: Active → Working Set committed pages, Wired → Non-Paged Pool, Cache → Paged Pool.
 #[cfg(windows)]
 pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
-    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     use windows::Win32::System::ProcessStatus::{GetPerformanceInfo, PERFORMANCE_INFORMATION};
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 
     unsafe {
         let mut mem_status = MEMORYSTATUSEX::default();
@@ -587,9 +623,17 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
             .saturating_sub(free)
             .saturating_sub(wired)
             .saturating_sub(cache);
-        if active > total { active = total; }
+        if active > total {
+            active = total;
+        }
 
-        MemorySegments { total, active, wired, cache, free }
+        MemorySegments {
+            total,
+            active,
+            wired,
+            cache,
+            free,
+        }
     }
 }
 
@@ -598,4 +642,3 @@ pub fn get_memory_segments(_sys: &sysinfo::System) -> MemorySegments {
 pub fn get_memory_segments(sys: &sysinfo::System) -> MemorySegments {
     get_fallback_segments(sys)
 }
-

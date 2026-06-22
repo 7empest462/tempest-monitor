@@ -1,22 +1,26 @@
+use crate::app::App;
+use crate::theme;
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Style},
     symbols,
     text::Span,
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
-    Frame,
 };
-use crate::app::App;
-use crate::theme;
 
 pub fn render_focus_chart(f: &mut Frame, app: &App, area: Rect) {
-    let cpu_data: Vec<(f64, f64)> = app.processes.focus_cpu_history
+    let cpu_data: Vec<(f64, f64)> = app
+        .processes
+        .focus_cpu_history
         .iter()
         .enumerate()
         .map(|(i, &v)| (i as f64, v as f64))
         .collect();
 
-    let mem_data: Vec<(f64, f64)> = app.processes.focus_mem_history
+    let mem_data: Vec<(f64, f64)> = app
+        .processes
+        .focus_mem_history
         .iter()
         .enumerate()
         .map(|(i, &v)| (i as f64, v as f64))
@@ -48,14 +52,13 @@ pub fn render_focus_chart(f: &mut Frame, app: &App, area: Rect) {
         ]);
 
     let y_axis = Axis::default()
-        .title(Span::styled("Usage %", Style::default().fg(theme::fg_muted())))
+        .title(Span::styled(
+            "Usage %",
+            Style::default().fg(theme::fg_muted()),
+        ))
         .style(Style::default().fg(theme::fg_muted()))
         .bounds([0.0, 100.0])
-        .labels(vec![
-            Span::raw("0%"),
-            Span::raw("50%"),
-            Span::raw("100%"),
-        ]);
+        .labels(vec![Span::raw("0%"), Span::raw("50%"), Span::raw("100%")]);
 
     let chart = Chart::new(datasets)
         .block(
@@ -63,7 +66,7 @@ pub fn render_focus_chart(f: &mut Frame, app: &App, area: Rect) {
                 .title(" Process Focus Timeline ")
                 .title_style(theme::style_title())
                 .borders(Borders::ALL)
-                .border_style(theme::style_border())
+                .border_style(theme::style_border()),
         )
         .x_axis(x_axis)
         .y_axis(y_axis);

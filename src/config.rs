@@ -47,7 +47,9 @@ pub struct AlertRuleConfig {
     pub action: String,
 }
 
-fn default_action() -> String { "notify".into() }
+fn default_action() -> String {
+    "notify".into()
+}
 
 impl Default for TempestConfig {
     fn default() -> Self {
@@ -132,8 +134,7 @@ impl TempestConfig {
             std::fs::create_dir_all(parent)?;
         }
 
-        let yaml = yaml_serde::to_string(self)
-            .map_err(std::io::Error::other)?;
+        let yaml = yaml_serde::to_string(self).map_err(std::io::Error::other)?;
         std::fs::write(config_path, yaml)?;
         Ok(())
     }

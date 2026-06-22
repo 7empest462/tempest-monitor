@@ -1,6 +1,6 @@
 # 7EMPEST MONITOR ⚡️ [![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20+%20Commons%20Clause-blue.svg)](LICENSE)
 
-A stunning, real-time terminal system monitor (TUI) for macOS, Windows and Linux, built with Rust.
+A stunning, real-time terminal system monitor (TUI) for macOS, Windows, and Linux, built with Rust.
 
 ## Gallery
 
@@ -25,7 +25,7 @@ A stunning, real-time terminal system monitor (TUI) for macOS, Windows and Linux
 - 💿 **Socket Connections**: Native high-performance socket listing (Protocols, Local/Remote IPs, Connection States).
 - ⚙️ **Process Management**:
   - Sort by CPU, Memory, PID, Name, Disk I/O, or Virtual Memory.
-  - Interactive **Signal Menu** (SIGTERM, SIGKILL, etc.).
+  - Interactive **Signal Menu** (SIGTERM, SIGKILL, etc. on Unix; Terminate Action on Windows).
   - **Tree View** mode to visualize parent-child relationships.
   - Powerful **Regex Filtering** to find exactly what you need.
 - 🎯 **Focus Mode**: Zero-in on a single process with dedicated high-res time-series charts.
@@ -41,9 +41,10 @@ A stunning, real-time terminal system monitor (TUI) for macOS, Windows and Linux
 - **Battery Status**: Powered by the modern, maintained `starship-battery` crate (upgraded from the abandoned `battery` crate) to ensure robust cross-platform battery telemetry including percentage, charging state, and remaining duration.
 - **Thermal Sensors**: Monitors temperatures across various system components.
 - **GPU Monitoring**: Dedicated tab for GPU utilization, clock speeds, and power draw.
-    - **macOS (Apple Silicon)**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required). Optimized for **M4** with support for **ANE Power**, **GPU Frequency (MHz)**, and **Unified Memory** utilization.
-    - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
-    - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
+  - **macOS (Apple Silicon)**: High-fidelity metrics via `powermetrics` (requires sudo) with a **reliable fallback** to `ioreg` (no sudo required). Optimized for **M4** with support for **ANE Power**, **GPU Frequency (MHz)**, and **Unified Memory** utilization.
+  - **Linux (AMD/Intel)**: Temperature, GPU clock, VRAM usage, and GPU busy % via `sysfs` / `hwmon`.
+  - **Linux (NVIDIA)**: Professional monitoring via `NVML`.
+  - **Windows**: Real-time GPU load percentage retrieved via Windows Performance Data Helper (PDH) and adapter information (VRAM, driver version, model) via DXGI APIs.
 
 ## 🎨 Dynamic Themes
 
@@ -61,10 +62,11 @@ Cycle through themes instantly by pressing `T` on any tab (or `t` on any tab exc
 
 Some advanced features require elevated privileges to access hardware statistics:
 - **GPU Utilization**: On macOS, `powermetrics` requires `sudo`.
+- **System Services & Network Sockets**: On Windows, listing/querying service status via the Service Control Manager API and binding network sockets requires running the terminal as **Administrator**.
 - **System Services**: On macOS, managing `launchctl` services requires `sudo`. On Linux, `systemctl` services are listed automatically (user + system).
-- **Sockets/Processes**: Full process metadata (compressed memory) requires `sudo`.
+- **Sockets/Processes**: Full process metadata (compressed memory) requires `sudo` on macOS/Linux.
 
-To run without typing your password every time, you can add this to your `/etc/sudoers` (using `visudo`):
+To run on macOS/Linux without typing your password every time, you can add this to your `/etc/sudoers` (using `visudo`):
 ```text
 your_username ALL=(ALL) NOPASSWD: /path/to/tempest-monitor
 ```
@@ -80,7 +82,7 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`0` or use `Tab`
 - `5`: **Network** - Per-interface traffic stats and interface info (MAC, Speed, Duplex).
 - `6`: **Processes** - The interactive task manager. Hit `Enter` for Focus Mode or `k` for Signal Menu.
 - `7`: **GPU** - Real-time utilization and power consumption charts.
-- `8`: **Services** - Interactive system service manager: macOS `launchctl` and Linux `systemd`. Press `Enter` to open the Service Inspector to read plist/unit files, toggle live log streaming, auto-detect and edit its config file using `$EDITOR` with automatic TUI suspend/resume, or start/stop/restart.
+- `8`: **Services** - Interactive system service manager: macOS `launchctl`, Linux `systemd`, and Windows Service Control Manager. Press `Enter` to open the Service Inspector to read plist/unit files, toggle live log streaming, auto-detect and edit its config file using `$EDITOR` with automatic TUI suspend/resume, or start/stop/restart.
 - `9`: **Sockets** - Real-time network socket enumeration (replacing `netstat`).
 - `0`: **History** - Rolling time-series charts displaying SQLite-backed long-term metric history.
 
@@ -109,6 +111,12 @@ Tempest Monitor is designed for both speed and depth. Press `1`-`0` or use `Tab`
 | `d` | Toggle detailed process panel |
 | `k` | Open Signal Menu for selected process |
 | `F1`-`F6` | Quick sort options (Processes tab only) |
+
+## Windows Notes
+
+Tempest Monitor is optimized for Windows terminals and PowerShell:
+- **Unicode Rendering**: Switch to UTF-8 output automatically (`SetConsoleOutputCP(65001)`) so blocks and sparklines render cleanly.
+- **Input Filtering**: Windows-specific key release inputs are filtered out to prevent double-scrolling and toggle resets.
 
 ## Installation
 
@@ -143,7 +151,7 @@ In addition to being a TUI application, `tempest-monitor` is also a reusable lib
 To use it, add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-tempest-monitor = "0.4.7"
+tempest-monitor = "0.4.9"
 ```
 
 ### Telemetry Capabilities:
@@ -156,6 +164,10 @@ tempest-monitor = "0.4.7"
   * AMD/Intel GPU clock, VRAM, and temperature via `sysfs`.
   * NVIDIA GPU stats via NVML bindings.
   * CPU governor controls and frequency telemetry.
+* **Windows**:
+  * DXGI GPU adapter information (model, driver version, total/used VRAM).
+  * PDH GPU core utilization query.
+  * Windows system services enumeration and network socket list.
 * **Cross-platform**: Sockets, disk statistics, network interface speed, and system service statuses.
 
 ### Library API Example:

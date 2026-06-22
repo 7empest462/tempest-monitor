@@ -1,33 +1,41 @@
-use sysinfo::Process;
+use crate::app::{App, ProcessViewMode, SortDirection, SortMode};
+use crate::theme;
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::Style,
-    widgets::{Block, Borders, Cell, Row, Table, Paragraph, Clear},
-    Frame,
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table},
 };
-use crate::app::{App, SortMode, SortDirection, ProcessViewMode};
-use crate::theme;
+use sysinfo::Process;
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let mut processes: Vec<_> = app.sys.processes().values().collect();
-    
+
     // Sort and filter
     if app.processes.view_mode == ProcessViewMode::List {
-        apply_sort(&mut processes, app.processes.sort_mode, app.processes.sort_direction, app);
+        apply_sort(
+            &mut processes,
+            app.processes.sort_mode,
+            app.processes.sort_direction,
+            app,
+        );
         let filter = app.processes.filter_text_area.lines()[0].to_string();
         if !filter.is_empty() {
             if app.processes.filter_regex {
                 if let Ok(re) = regex::Regex::new(&filter) {
                     processes.retain(|p| {
-                        re.is_match(&p.name().to_string_lossy()) ||
-                        re.is_match(&p.pid().to_string())
+                        re.is_match(&p.name().to_string_lossy())
+                            || re.is_match(&p.pid().to_string())
                     });
                 }
             } else {
                 let filter_str = filter.to_lowercase();
                 processes.retain(|p| {
-                    p.name().to_string_lossy().to_lowercase().contains(&filter_str) ||
-                    p.pid().to_string().contains(&filter_str)
+                    p.name()
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .contains(&filter_str)
+                        || p.pid().to_string().contains(&filter_str)
                 });
             }
         }
@@ -41,9 +49,17 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            if app.processes.filter_active { Constraint::Length(3) } else { Constraint::Length(0) },
+            if app.processes.filter_active {
+                Constraint::Length(3)
+            } else {
+                Constraint::Length(0)
+            },
             Constraint::Min(0),
-            if app.processes.show_detail_panel { Constraint::Length(10) } else { Constraint::Length(0) },
+            if app.processes.show_detail_panel {
+                Constraint::Length(10)
+            } else {
+                Constraint::Length(0)
+            },
         ])
         .split(area);
 
@@ -56,15 +72,18 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Filter Processes (Enter/Esc to exit) ")
-                .border_style(theme::style_tab_active())
+                .border_style(theme::style_tab_active()),
         );
         f.render_widget(&app.processes.filter_text_area, chunks[filter_idx]);
     }
 
-    let header_cells = ["PID", "Name", "CPU%", "MEM%", "PR", "THR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time", "State"]
-        .iter()
-        .map(|h| Cell::from(*h).style(theme::style_table_header()));
-    
+    let header_cells = [
+        "PID", "Name", "CPU%", "MEM%", "PR", "THR", "TOTAL", "VIR", "Disk R/W", "User", "CPU Time",
+        "State",
+    ]
+    .iter()
+    .map(|h| Cell::from(*h).style(theme::style_table_header()));
+
     let header = Row::new(header_cells)
         .style(Style::default().bg(theme::header_bg()))
         .height(1);
@@ -74,21 +93,39 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     if app.processes.view_mode == ProcessViewMode::Tree {
         // Build tree
-        let mut children_map: std::collections::HashMap<Option<sysinfo::Pid>, Vec<&Process>> = std::collections::HashMap::new();
+        let mut children_map: std::collections::HashMap<Option<sysinfo::Pid>, Vec<&Process>> =
+            std::collections::HashMap::new();
         for p in processes.iter() {
             children_map.entry(p.parent()).or_default().push(p);
         }
 
         // Sort children in each node
         for children in children_map.values_mut() {
-            apply_sort(children, app.processes.sort_mode, app.processes.sort_direction, app);
+            apply_sort(
+                children,
+                app.processes.sort_mode,
+                app.processes.sort_direction,
+                app,
+            );
         }
 
-        flatten_tree(&children_map, None, 0, app, &mut rows, &mut displayed_processes);
+        flatten_tree(
+            &children_map,
+            None,
+            0,
+            app,
+            &mut rows,
+            &mut displayed_processes,
+        );
     } else {
         for (i, p) in processes.iter().enumerate() {
             displayed_processes.push(p);
-            rows.push(process_to_row(p, i == app.processes.selected, app, "".to_string()));
+            rows.push(process_to_row(
+                p,
+                i == app.processes.selected,
+                app,
+                "".to_string(),
+            ));
         }
     }
 
@@ -102,7 +139,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
         total_rows,
         app.processes.sort_mode.label(),
         app.processes.filter_text_area.lines()[0],
-        if app.processes.filter_regex { " [REGEX]" } else { "" }
+        if app.processes.filter_regex {
+            " [REGEX]"
+        } else {
+            ""
+        }
     );
 
     let table = Table::new(
@@ -131,11 +172,15 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(theme::style_border()),
     );
 
-    app.processes.table_state.select(Some(app.processes.selected));
+    app.processes
+        .table_state
+        .select(Some(app.processes.selected));
     f.render_stateful_widget(table, chunks[content_idx], &mut app.processes.table_state);
-    if app.processes.show_detail_panel && total_rows > 0
-        && let Some(p) = displayed_processes.get(app.processes.selected) {
-            render_detail_panel(f, p, chunks[detail_idx], app);
+    if app.processes.show_detail_panel
+        && total_rows > 0
+        && let Some(p) = displayed_processes.get(app.processes.selected)
+    {
+        render_detail_panel(f, p, chunks[detail_idx], app);
     }
 
     if app.processes.signal_menu_open {
@@ -165,12 +210,16 @@ fn render_detail_panel(f: &mut Frame, p: &Process, area: Rect, app: &App) {
     let p_widget = Paragraph::new(detail_text)
         .block(
             Block::default()
-                .title(format!(" Details: {} (PID {}) ", p.name().to_string_lossy(), p.pid()))
+                .title(format!(
+                    " Details: {} (PID {}) ",
+                    p.name().to_string_lossy(),
+                    p.pid()
+                ))
                 .borders(Borders::ALL)
-                .border_style(theme::style_border())
+                .border_style(theme::style_border()),
         )
         .wrap(ratatui::widgets::Wrap { trim: true });
-    
+
     f.render_widget(p_widget, area);
 }
 
@@ -178,42 +227,57 @@ fn render_signal_menu(f: &mut Frame, area: Rect, selected: usize) {
     let menu_area = centered_rect(30, 40, area);
     f.render_widget(Clear, menu_area);
 
-    let items: Vec<ratatui::widgets::ListItem> = crate::platform::get_signals().iter().enumerate().map(|(i, sig)| {
-        let style = if i == selected {
-            theme::style_selected()
-        } else {
-            Style::default()
-        };
-        ratatui::widgets::ListItem::new(sig.name).style(style)
-    }).collect();
+    let items: Vec<ratatui::widgets::ListItem> = crate::platform::get_signals()
+        .iter()
+        .enumerate()
+        .map(|(i, sig)| {
+            let style = if i == selected {
+                theme::style_selected()
+            } else {
+                Style::default()
+            };
+            ratatui::widgets::ListItem::new(sig.name).style(style)
+        })
+        .collect();
 
-    let list = ratatui::widgets::List::new(items)
-        .block(
-            Block::default()
-                .title(" Send Signal ")
-                .borders(Borders::ALL)
-                .border_style(theme::style_border())
-        );
+    let list = ratatui::widgets::List::new(items).block(
+        Block::default()
+            .title(" Send Signal ")
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
 
     f.render_widget(list, menu_area);
 }
 
-pub fn apply_sort(processes: &mut Vec<&Process>, mode: SortMode, direction: SortDirection, app: &App) {
+pub fn apply_sort(
+    processes: &mut Vec<&Process>,
+    mode: SortMode,
+    direction: SortDirection,
+    app: &App,
+) {
     processes.sort_by(|a, b| {
         let ord = match mode {
-            SortMode::Cpu => a.cpu_usage().partial_cmp(&b.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal),
+            SortMode::Cpu => a
+                .cpu_usage()
+                .partial_cmp(&b.cpu_usage())
+                .unwrap_or(std::cmp::Ordering::Equal),
             SortMode::Memory => {
                 let a_total = a.memory() + app.get_compressed_mem(a.pid());
                 let b_total = b.memory() + app.get_compressed_mem(b.pid());
                 a_total.cmp(&b_total)
-            },
+            }
             SortMode::Pid => a.pid().cmp(&b.pid()),
             SortMode::Name => a.name().cmp(b.name()),
             SortMode::DiskIo => (a.disk_usage().read_bytes + a.disk_usage().written_bytes)
                 .cmp(&(b.disk_usage().read_bytes + b.disk_usage().written_bytes)),
             SortMode::Virt => a.virtual_memory().cmp(&b.virtual_memory()),
         };
-        if direction == SortDirection::Desc { ord.reverse() } else { ord }
+        if direction == SortDirection::Desc {
+            ord.reverse()
+        } else {
+            ord
+        }
     });
 }
 
@@ -237,9 +301,9 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
     } else {
         format!("{}:{:02}", m, s)
     };
-    
+
     let extra = app.get_extra_info(p.pid());
-    
+
     Row::new(vec![
         Cell::from(p.pid().to_string()),
         Cell::from(name_prefix + &p.name().to_string_lossy()),
@@ -249,11 +313,20 @@ fn process_to_row<'a>(p: &'a Process, selected: bool, app: &App, name_prefix: St
         Cell::from(extra.thread_count.to_string()),
         Cell::from(format_size(total_footprint)),
         Cell::from(format_size(p.virtual_memory())),
-        Cell::from(format!("{} / {}", format_short_size(disk_usage.read_bytes), format_short_size(disk_usage.written_bytes))),
-        Cell::from(p.user_id().map(|id| id.to_string()).unwrap_or_else(|| "n/a".into())),
+        Cell::from(format!(
+            "{} / {}",
+            format_short_size(disk_usage.read_bytes),
+            format_short_size(disk_usage.written_bytes)
+        )),
+        Cell::from(
+            p.user_id()
+                .map(|id| id.to_string())
+                .unwrap_or_else(|| "n/a".into()),
+        ),
         Cell::from(cpu_time_str),
         Cell::from(format!("{:?}", p.status())),
-    ]).style(style)
+    ])
+    .style(style)
 }
 
 fn flatten_tree<'a>(
@@ -274,9 +347,16 @@ fn flatten_tree<'a>(
             } else {
                 "".to_string()
             };
-            
+
             rows.push(process_to_row(p, is_selected, app, indent));
-            flatten_tree(children_map, Some(p.pid()), depth + 1, app, rows, displayed_processes);
+            flatten_tree(
+                children_map,
+                Some(p.pid()),
+                depth + 1,
+                app,
+                rows,
+                displayed_processes,
+            );
         }
     }
 }

@@ -58,7 +58,7 @@
 
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "tempest-monitor";
-          version = "0.4.7";
+          version = "0.4.9";
           src = ./.;
 
           cargoLock = {

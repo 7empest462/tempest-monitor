@@ -35,9 +35,20 @@ struct task_vm_info_compressed {
 unsafe extern "C" {
     fn mach_task_self() -> u32;
     fn task_for_pid(target_tport: u32, pid: i32, tn: *mut u32) -> i32;
-    fn task_info(target_task: u32, flavor: i32, task_info_out: *mut i32, task_info_outCnt: *mut u32) -> i32;
+    fn task_info(
+        target_task: u32,
+        flavor: i32,
+        task_info_out: *mut i32,
+        task_info_outCnt: *mut u32,
+    ) -> i32;
     fn mach_port_deallocate(task: u32, name: u32) -> i32;
-    fn proc_pidinfo(pid: i32, flavor: i32, arg: u64, buffer: *mut std::ffi::c_void, buffersize: i32) -> i32;
+    fn proc_pidinfo(
+        pid: i32,
+        flavor: i32,
+        arg: u64,
+        buffer: *mut std::ffi::c_void,
+        buffersize: i32,
+    ) -> i32;
 }
 
 #[repr(C)]
@@ -99,7 +110,7 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
         .arg(name)
         .output()
         .ok()?;
-    
+
     let s = String::from_utf8_lossy(&output.stdout);
     let mut info = MacOSInterfaceInfo {
         speed: None,
@@ -114,19 +125,33 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
         if low.contains("mtu")
             && let Some(mtu_part) = line.split("mtu ").nth(1)
         {
-            info.mtu = mtu_part.split_whitespace().next().and_then(|m| m.parse().ok()).unwrap_or(1500);
+            info.mtu = mtu_part
+                .split_whitespace()
+                .next()
+                .and_then(|m| m.parse().ok())
+                .unwrap_or(1500);
         }
         // Media (Speed and Duplex)
         if low.contains("media:") {
-            if low.contains("1000baset") { info.speed = Some(1000); }
-            else if low.contains("2500baset") { info.speed = Some(2500); }
-            else if low.contains("5000baset") { info.speed = Some(5000); }
-            else if low.contains("10gbaset") { info.speed = Some(10000); }
-            else if low.contains("100baset") { info.speed = Some(100); }
-            else if low.contains("10baset") { info.speed = Some(10); }
-            
-            if low.contains("full-duplex") { info.duplex = Some("Full".into()); }
-            else if low.contains("half-duplex") { info.duplex = Some("Half".into()); }
+            if low.contains("1000baset") {
+                info.speed = Some(1000);
+            } else if low.contains("2500baset") {
+                info.speed = Some(2500);
+            } else if low.contains("5000baset") {
+                info.speed = Some(5000);
+            } else if low.contains("10gbaset") {
+                info.speed = Some(10000);
+            } else if low.contains("100baset") {
+                info.speed = Some(100);
+            } else if low.contains("10baset") {
+                info.speed = Some(10);
+            }
+
+            if low.contains("full-duplex") {
+                info.duplex = Some("Full".into());
+            } else if low.contains("half-duplex") {
+                info.duplex = Some("Half".into());
+            }
         }
     }
 
@@ -135,13 +160,11 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
     // For now, let's try to identify the driver/type from ioreg if possible.
     if name.starts_with("en") {
         info.driver = Some("Apple Ethernet/Wi-Fi".into());
-        
+
         // If speed is still None, it might be Wi-Fi. Try airport utility.
         if info.speed.is_none() {
             let airport_path = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
-            if let Ok(airport_out) = std::process::Command::new(airport_path)
-                .arg("-I")
-                .output() {
+            if let Ok(airport_out) = std::process::Command::new(airport_path).arg("-I").output() {
                 let airport_s = String::from_utf8_lossy(&airport_out.stdout);
                 for a_line in airport_s.lines() {
                     if let Some(rate_str) = a_line.trim().strip_prefix("lastTxRate:") {
@@ -166,13 +189,21 @@ pub fn get_macos_interface_info(name: &str) -> Option<MacOSInterfaceInfo> {
 pub fn get_process_metadata(pid: i32) -> Option<ProcessMetadata> {
     let mut task: u32 = 0;
     let self_port = unsafe { mach_task_self() };
-    
+
     // Memory (Compressed)
     let mut compressed: u64 = 0;
     if unsafe { task_for_pid(self_port, pid, &mut task) } == 0 {
         let mut info = task_vm_info_compressed::default();
         let mut count = TASK_VM_INFO_COUNT;
-        if unsafe { task_info(task, TASK_VM_INFO, &mut info as *mut _ as *mut i32, &mut count) } == 0 {
+        if unsafe {
+            task_info(
+                task,
+                TASK_VM_INFO,
+                &mut info as *mut _ as *mut i32,
+                &mut count,
+            )
+        } == 0
+        {
             compressed = info.compressed;
         }
         unsafe { mach_port_deallocate(self_port, task) };
@@ -213,7 +244,7 @@ pub fn get_ioreg_gpu_usage() -> f64 {
         .args(["-r", "-c", "AGXAccelerator"])
         .output()
         .ok();
-        
+
     if let Some(out) = output {
         let s = String::from_utf8_lossy(&out.stdout);
         // Matches: "Device Utilization %" = 67 OR "Device Utilization %"=67 OR Device Utilization %=67
@@ -242,19 +273,28 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     tel.usage_pct = get_ioreg_gpu_usage();
 
     let is_root = unsafe { libc::getuid() } == 0;
-    
+
     let run_powermetrics = |use_sudo: bool, non_interactive: bool| -> Option<String> {
         let mut cmd = if use_sudo {
             let mut c = std::process::Command::new("sudo");
-            if non_interactive { c.arg("-n"); }
+            if non_interactive {
+                c.arg("-n");
+            }
             c.arg("powermetrics");
             c
         } else {
             std::process::Command::new("powermetrics")
         };
 
-        cmd.args(["-n", "1", "-i", "200", "--samplers", "gpu_power,cpu_power,thermal"]);
-        
+        cmd.args([
+            "-n",
+            "1",
+            "-i",
+            "200",
+            "--samplers",
+            "gpu_power,cpu_power,thermal",
+        ]);
+
         if let Some(output) = cmd.output().ok().filter(|o| o.status.success()) {
             return Some(String::from_utf8_lossy(&output.stdout).into_owned());
         }
@@ -278,9 +318,10 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
     if let Some(stdout) = output {
         for line in stdout.lines() {
             let low = line.to_lowercase();
-            
+
             // 1. GPU Residency (Usage %)
-            if low.contains("gpu") && low.contains("active residency")
+            if low.contains("gpu")
+                && low.contains("active residency")
                 && let Some(val) = line.split(':').nth(1)
             {
                 let clean_val = val.split('(').next().unwrap_or(val).trim();
@@ -299,10 +340,13 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
 
             // 3. Power Parsing (more robust case-insensitive check)
             fn parse_mw(line: &str) -> Option<f64> {
-                line.split(':').next_back()?.to_lowercase()
+                line.split(':')
+                    .next_back()?
+                    .to_lowercase()
                     .replace("mw", "")
                     .trim()
-                    .parse().ok()
+                    .parse()
+                    .ok()
             }
 
             if low.contains("gpu power") {
@@ -322,22 +366,43 @@ pub fn get_macos_gpu_info(allow_prompt: bool) -> MacOSGpuTelemetry {
 
 /// Dynamic SoC detection for Apple Silicon (M1, M2, M3, M4 etc.)
 pub fn get_soc_model() -> String {
+    use libc::{c_char, c_void, size_t, sysctlbyname};
     use std::ptr;
-    use libc::{sysctlbyname, c_char, c_void, size_t};
 
     let mut size: size_t = 0;
     let name = "machdep.cpu.brand_string\0";
     unsafe {
         // Get size first
-        if sysctlbyname(name.as_ptr() as *const c_char, ptr::null_mut(), &mut size, ptr::null_mut(), 0) != 0 {
+        if sysctlbyname(
+            name.as_ptr() as *const c_char,
+            ptr::null_mut(),
+            &mut size,
+            ptr::null_mut(),
+            0,
+        ) != 0
+        {
             return "Apple Silicon".to_string();
         }
         let mut buf = vec![0u8; size];
-        if sysctlbyname(name.as_ptr() as *const c_char, buf.as_mut_ptr() as *mut c_void, &mut size, ptr::null_mut(), 0) != 0 {
+        if sysctlbyname(
+            name.as_ptr() as *const c_char,
+            buf.as_mut_ptr() as *mut c_void,
+            &mut size,
+            ptr::null_mut(),
+            0,
+        ) != 0
+        {
             return "Apple Silicon".to_string();
         }
-        let s = String::from_utf8_lossy(&buf).trim_matches(char::from(0)).trim().to_string();
-        if s.is_empty() { "Apple Silicon".to_string() } else { s }
+        let s = String::from_utf8_lossy(&buf)
+            .trim_matches(char::from(0))
+            .trim()
+            .to_string();
+        if s.is_empty() {
+            "Apple Silicon".to_string()
+        } else {
+            s
+        }
     }
 }
 

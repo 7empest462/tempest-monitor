@@ -17,8 +17,6 @@ use crate::power_mode::CpuPowerMode;
 // ── History buffer size (number of sparkline data points) ────────────────────
 pub const HISTORY_LEN: usize = 120;
 
-
-
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -51,31 +49,31 @@ impl ActiveTab {
 
     pub fn index(self) -> usize {
         match self {
-            ActiveTab::Overview  => 0,
-            ActiveTab::Cpu      => 1,
-            ActiveTab::Memory   => 2,
-            ActiveTab::Disks    => 3,
-            ActiveTab::Network  => 4,
+            ActiveTab::Overview => 0,
+            ActiveTab::Cpu => 1,
+            ActiveTab::Memory => 2,
+            ActiveTab::Disks => 3,
+            ActiveTab::Network => 4,
             ActiveTab::Processes => 5,
-            ActiveTab::Gpu      => 6,
+            ActiveTab::Gpu => 6,
             ActiveTab::Services => 7,
-            ActiveTab::Sockets  => 8,
-            ActiveTab::History  => 9,
+            ActiveTab::Sockets => 8,
+            ActiveTab::History => 9,
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            ActiveTab::Overview  => "Overview",
-            ActiveTab::Cpu      => "CPU",
-            ActiveTab::Memory   => "RAM",
-            ActiveTab::Disks    => "Disk",
-            ActiveTab::Network  => "Net",
+            ActiveTab::Overview => "Overview",
+            ActiveTab::Cpu => "CPU",
+            ActiveTab::Memory => "RAM",
+            ActiveTab::Disks => "Disk",
+            ActiveTab::Network => "Net",
             ActiveTab::Processes => "Proc",
-            ActiveTab::Gpu      => "GPU",
+            ActiveTab::Gpu => "GPU",
             ActiveTab::Services => "Svc",
-            ActiveTab::Sockets  => "Socks",
-            ActiveTab::History  => "History",
+            ActiveTab::Sockets => "Socks",
+            ActiveTab::History => "History",
         }
     }
 }
@@ -85,8 +83,8 @@ impl ActiveTab {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum SortMode {
     Cpu,
-    Memory,      // Resident (physical)
-    Virt,        // Virtual (imprint)
+    Memory, // Resident (physical)
+    Virt,   // Virtual (imprint)
     Pid,
     Name,
     DiskIo,
@@ -123,8 +121,8 @@ pub enum ProcessViewMode {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ServiceInspectorMode {
-    View,   // Show service file contents
-    Logs,   // Show service logs
+    View, // Show service file contents
+    Logs, // Show service logs
 }
 
 // ── Signals (re-exported from platform abstraction layer) ────────────────────
@@ -154,7 +152,7 @@ pub use crate::system_helper::{ServiceEntry, SocketEntry};
 pub struct NetworkInterfaceInfo {
     pub mac: String,
     pub mtu: u32,
-    pub speed: Option<u32>,   // Mbps
+    pub speed: Option<u32>, // Mbps
     pub duplex: Option<String>,
     pub driver: Option<String>,
 }
@@ -244,10 +242,10 @@ pub struct App {
     #[allow(dead_code)]
     pub gpu_driver: String,
     #[allow(dead_code)]
-    pub gpu_vendor: String,  // "AMD", "Intel", "NVIDIA", "Apple", "Unknown"
+    pub gpu_vendor: String, // "AMD", "Intel", "NVIDIA", "Apple", "Unknown"
     pub gpu_usage: f64,
     #[allow(dead_code)]
-    pub gpu_power_mw: Option<f64>,   // milliwatts from powermetrics (macOS)
+    pub gpu_power_mw: Option<f64>, // milliwatts from powermetrics (macOS)
     pub cpu_power_mw: Option<f64>,
     pub pkg_power_mw: Option<f64>,
     pub ane_power_mw: Option<f64>,
@@ -257,13 +255,13 @@ pub struct App {
     #[cfg(target_os = "linux")]
     pub nvidia_gpus: Vec<NvidiaGpuInfo>,
     #[cfg(target_os = "linux")]
-    pub gpu_temp: Option<u32>,        // degrees C
+    pub gpu_temp: Option<u32>, // degrees C
     #[cfg(target_os = "linux")]
     pub gpu_clock_mhz: Option<u32>,
     #[cfg(target_os = "linux")]
-    pub gpu_vram_used: Option<u64>,   // bytes
+    pub gpu_vram_used: Option<u64>, // bytes
     #[cfg(target_os = "linux")]
-    pub gpu_vram_total: Option<u64>,  // bytes
+    pub gpu_vram_total: Option<u64>, // bytes
 
     // Network Enrichment
     pub network_info: HashMap<String, NetworkInterfaceInfo>,
@@ -278,7 +276,7 @@ pub struct App {
     pub paused: bool,
 
     // History buffers for sparklines
-    pub cpu_history: VecDeque<u64>,          // overall CPU % (0–100)
+    pub cpu_history: VecDeque<u64>,           // overall CPU % (0–100)
     pub per_core_history: Vec<VecDeque<u64>>, // per-core
     pub ram_history: VecDeque<u64>,           // RAM % (0–100)
     pub swap_history: VecDeque<u64>,          // SWAP % (0–100)
@@ -309,7 +307,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new_with_config(_cli: &CliArgs, config: &TempestConfig, config_path: Option<String>) -> Self {
+    pub fn new_with_config(
+        _cli: &CliArgs,
+        config: &TempestConfig,
+        config_path: Option<String>,
+    ) -> Self {
         let refresh_kind = RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::everything())
@@ -323,10 +325,15 @@ impl App {
             mgr.batteries().ok().and_then(|mut iter| {
                 iter.next().and_then(|b| {
                     b.ok().map(|bat| BatteryInfo {
-                        percent: bat.state_of_charge().get::<starship_battery::units::ratio::percent>() as f64,
+                        percent: bat
+                            .state_of_charge()
+                            .get::<starship_battery::units::ratio::percent>()
+                            as f64,
                         state: format!("{:?}", bat.state()),
                         time_remaining: bat.time_to_empty().map(|t| {
-                            Duration::from_secs(t.get::<starship_battery::units::time::second>() as u64)
+                            Duration::from_secs(
+                                t.get::<starship_battery::units::time::second>() as u64
+                            )
                         }),
                     })
                 })
@@ -457,7 +464,7 @@ impl App {
 
         // Perform initial GPU detection to populate model and initial stats
         app.refresh_gpu();
-        
+
         app
     }
 
@@ -501,7 +508,7 @@ impl App {
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::everything());
         self.sys.refresh_specifics(rk_fast);
-        
+
         // Refresh load average
         let load = System::load_average();
         self.load_avg = (load.one, load.five, load.fifteen);
@@ -583,30 +590,41 @@ impl App {
                 let (speed, duplex, driver) = (
                     linux_info.as_ref().and_then(|e| e.speed),
                     linux_info.as_ref().and_then(|e| e.duplex.clone()),
-                    linux_info.as_ref().and_then(|e| e.driver.clone())
+                    linux_info.as_ref().and_then(|e| e.driver.clone()),
                 );
 
-                self.network_info.insert(interface.name.clone(), NetworkInterfaceInfo {
-                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
-                    mtu: 0,
-                    speed,
-                    duplex,
-                    driver,
-                });
+                self.network_info.insert(
+                    interface.name.clone(),
+                    NetworkInterfaceInfo {
+                        mac: interface
+                            .mac
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| "00:00:00:00:00:00".into()),
+                        mtu: 0,
+                        speed,
+                        duplex,
+                        driver,
+                    },
+                );
             }
         }
         #[cfg(target_os = "macos")]
         {
             for interface in pnet::datalink::interfaces() {
                 let mut info = NetworkInterfaceInfo {
-                    mac: interface.mac.map(|m| m.to_string()).unwrap_or_else(|| "00:00:00:00:00:00".into()),
+                    mac: interface
+                        .mac
+                        .map(|m| m.to_string())
+                        .unwrap_or_else(|| "00:00:00:00:00:00".into()),
                     mtu: 0,
                     speed: None,
                     duplex: None,
                     driver: None,
                 };
 
-                if let Some(mac_info) = crate::macos_helper::get_macos_interface_info(&interface.name) {
+                if let Some(mac_info) =
+                    crate::macos_helper::get_macos_interface_info(&interface.name)
+                {
                     info.mtu = mac_info.mtu;
                     info.speed = mac_info.speed;
                     info.duplex = mac_info.duplex;
@@ -621,20 +639,27 @@ impl App {
             // Windows / other: use sysinfo Networks for basic interface info
             for (name, _data) in self.networks.iter() {
                 if !self.network_info.contains_key(name) {
-                    self.network_info.insert(name.to_string(), NetworkInterfaceInfo {
-                        mac: "N/A".into(),
-                        mtu: 0,
-                        speed: None,
-                        duplex: None,
-                        driver: None,
-                    });
+                    self.network_info.insert(
+                        name.to_string(),
+                        NetworkInterfaceInfo {
+                            mac: "N/A".into(),
+                            mtu: 0,
+                            speed: None,
+                            duplex: None,
+                            driver: None,
+                        },
+                    );
                 }
             }
         }
 
         // CPU history
         let global_cpu: f64 = if !self.sys.cpus().is_empty() {
-            self.sys.cpus().iter().map(|c| c.cpu_usage() as f64).sum::<f64>()
+            self.sys
+                .cpus()
+                .iter()
+                .map(|c| c.cpu_usage() as f64)
+                .sum::<f64>()
                 / self.sys.cpus().len() as f64
         } else {
             0.0
@@ -682,8 +707,10 @@ impl App {
             && let Some(Ok(bat)) = batteries.next()
         {
             let state = bat.state();
-            let percent = bat.state_of_charge().get::<starship_battery::units::ratio::percent>() as f64;
-            
+            let percent = bat
+                .state_of_charge()
+                .get::<starship_battery::units::ratio::percent>() as f64;
+
             // Sanity check for macOS "Unknown" state when plugged in
             let state_str = if format!("{:?}", state) == "Unknown" {
                 if percent > 95.0 {
@@ -699,9 +726,7 @@ impl App {
                 percent,
                 state: state_str,
                 time_remaining: bat.time_to_empty().map(|t| {
-                    Duration::from_secs(
-                        t.get::<starship_battery::units::time::second>() as u64,
-                    )
+                    Duration::from_secs(t.get::<starship_battery::units::time::second>() as u64)
                 }),
             });
         }
@@ -716,12 +741,20 @@ impl App {
 
     /// Get extra info for a process.
     pub fn get_extra_info(&self, pid: sysinfo::Pid) -> ProcessExtraInfo {
-        self.processes.extra_cache.get(&pid).cloned().unwrap_or_default()
+        self.processes
+            .extra_cache
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Get compressed memory for a process.
     pub fn get_compressed_mem(&self, pid: sysinfo::Pid) -> u64 {
-        self.processes.extra_cache.get(&pid).map(|e| e.compressed_mem).unwrap_or(0)
+        self.processes
+            .extra_cache
+            .get(&pid)
+            .map(|e| e.compressed_mem)
+            .unwrap_or(0)
     }
 
     /// Refresh GPU usage and power data.
@@ -775,7 +808,7 @@ impl App {
     /// Refresh list of services via `launchctl` (macOS) or `systemctl` (Linux).
     pub fn refresh_services(&mut self) {
         self.services.list = crate::system_helper::get_services();
-        
+
         // Clamp selection
         if self.services.selected >= self.services.list.len() && !self.services.list.is_empty() {
             self.services.selected = self.services.list.len() - 1;
@@ -814,15 +847,18 @@ impl App {
 
             // Resolve the service file path
             let file_path = crate::service_inspector::resolve_service_file(&label);
-            let file_contents = file_path.as_ref()
+            let file_contents = file_path
+                .as_ref()
                 .and_then(|p| crate::service_inspector::read_service_file(p));
 
             // Detect config file
-            let config_path = file_contents.as_ref()
+            let config_path = file_contents
+                .as_ref()
                 .and_then(|c| crate::service_inspector::detect_config_file(c));
 
             // Check SIP protection
-            let is_protected = file_path.as_ref()
+            let is_protected = file_path
+                .as_ref()
                 .map(|p| crate::service_inspector::is_sip_protected(p))
                 .unwrap_or(false);
 

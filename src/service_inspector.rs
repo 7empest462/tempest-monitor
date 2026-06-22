@@ -65,8 +65,16 @@ pub fn read_service_file(path: &str) -> Option<String> {
 pub fn detect_config_file(_service_file_contents: &str) -> Option<String> {
     // Common config file extensions (used on all platforms)
     let config_extensions = [
-        ".conf", ".yaml", ".yml", ".json", ".toml",
-        ".cfg", ".ini", ".config", ".properties", ".xml",
+        ".conf",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".config",
+        ".properties",
+        ".xml",
     ];
 
     #[allow(unused_mut)]
@@ -148,9 +156,10 @@ pub fn detect_config_file(_service_file_contents: &str) -> Option<String> {
     for arg in candidate_args.iter().skip(1) {
         let lower = arg.to_lowercase();
         if config_extensions.iter().any(|ext| lower.ends_with(ext))
-            && std::path::Path::new(arg).exists() {
-                return Some(arg.clone());
-            }
+            && std::path::Path::new(arg).exists()
+        {
+            return Some(arg.clone());
+        }
     }
 
     // Second pass: look for any existing file path that isn't the executable
@@ -213,8 +222,15 @@ pub fn get_service_logs(label: &str, service_file_contents: Option<&str>) -> Vec
     // Also try `log show` for the label (brief, last 50 entries)
     lines.push("── system log (last 20) ──".to_string());
     if let Ok(output) = std::process::Command::new("log")
-        .args(["show", "--predicate", &format!("subsystem == '{}'", label),
-               "--last", "5m", "--style", "compact"])
+        .args([
+            "show",
+            "--predicate",
+            &format!("subsystem == '{}'", label),
+            "--last",
+            "5m",
+            "--style",
+            "compact",
+        ])
         .output()
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -238,7 +254,15 @@ pub fn get_service_logs(label: &str, _service_file_contents: Option<&str>) -> Ve
     lines.push(String::new());
 
     if let Ok(output) = std::process::Command::new("journalctl")
-        .args(["-u", label, "--no-pager", "-n", "100", "--output", "short-iso"])
+        .args([
+            "-u",
+            label,
+            "--no-pager",
+            "-n",
+            "100",
+            "--output",
+            "short-iso",
+        ])
         .output()
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -275,10 +299,11 @@ fn extract_plist_paths(contents: &str, keys: &[&str]) -> Vec<(String, String)> {
                 if let Some(next_line) = lines.get(i + 1) {
                     let next_trimmed = next_line.trim();
                     if let Some(start) = next_trimmed.find("<string>")
-                        && let Some(end) = next_trimmed.find("</string>") {
-                            let val = &next_trimmed[start + 8..end];
-                            results.push((key.to_string(), val.to_string()));
-                        }
+                        && let Some(end) = next_trimmed.find("</string>")
+                    {
+                        let val = &next_trimmed[start + 8..end];
+                        results.push((key.to_string(), val.to_string()));
+                    }
                 }
             }
         }

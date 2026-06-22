@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Sparkline, Table},
-    Frame,
 };
 
 use crate::app::App;
@@ -45,17 +45,14 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_load_averages(f: &mut Frame, app: &App, area: Rect) {
     let (one, five, fifteen) = app.load_avg;
-    let text = format!(
-        " 1 min: {one:.2} │ 5 min: {five:.2} │ 15 min: {fifteen:.2} ",
+    let text = format!(" 1 min: {one:.2} │ 5 min: {five:.2} │ 15 min: {fifteen:.2} ",);
+    let p = Paragraph::new(text).block(
+        Block::default()
+            .title(" Load Averages ")
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
     );
-    let p = Paragraph::new(text)
-        .block(
-            Block::default()
-                .title(" Load Averages ")
-                .title_style(theme::style_title())
-                .borders(Borders::ALL)
-                .border_style(theme::style_border()),
-        );
     f.render_widget(p, area);
 }
 
@@ -86,7 +83,12 @@ fn render_power_mode(f: &mut Frame, app: &App, area: Rect) {
 
         if is_active {
             spans.push(Span::styled(
-                format!("{} {} {} ", f_key, available_mode.icon(), available_mode.label()),
+                format!(
+                    "{} {} {} ",
+                    f_key,
+                    available_mode.icon(),
+                    available_mode.label()
+                ),
                 Style::default()
                     .fg(mode_color(*available_mode))
                     .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
@@ -128,11 +130,11 @@ fn render_power_mode(f: &mut Frame, app: &App, area: Rect) {
 
 fn mode_color(mode: CpuPowerMode) -> Color {
     match mode {
-        CpuPowerMode::LowPower    => Color::Rgb(148, 226, 213), // teal
-        CpuPowerMode::Normal      => Color::Rgb(166, 227, 161), // green
-        CpuPowerMode::Balanced    => Color::Rgb(249, 226, 175), // yellow
+        CpuPowerMode::LowPower => Color::Rgb(148, 226, 213), // teal
+        CpuPowerMode::Normal => Color::Rgb(166, 227, 161),   // green
+        CpuPowerMode::Balanced => Color::Rgb(249, 226, 175), // yellow
         CpuPowerMode::Performance => Color::Rgb(243, 139, 168), // red/peach
-        CpuPowerMode::Unknown     => Color::Rgb(108, 112, 124), // muted
+        CpuPowerMode::Unknown => Color::Rgb(108, 112, 124),  // muted
     }
 }
 
@@ -199,7 +201,9 @@ fn render_core_bars(f: &mut Frame, app: &App, area: Rect) {
                 let bar: String = "█".repeat(filled) + &"░".repeat(empty);
 
                 let text = format!(" Core {:02} [{bar}] {:5.1}% @ {freq} MHz", idx, usage);
-                row_cells.push(Cell::from(text).style(Style::default().fg(theme::usage_color(usage as f64))));
+                row_cells.push(
+                    Cell::from(text).style(Style::default().fg(theme::usage_color(usage as f64))),
+                );
             } else {
                 row_cells.push(Cell::from(""));
             }
@@ -211,14 +215,13 @@ fn render_core_bars(f: &mut Frame, app: &App, area: Rect) {
         .map(|_| Constraint::Length(col_width as u16))
         .collect();
 
-    let table = Table::new(rows, constraints)
-        .block(
-            Block::default()
-                .title(format!(" CPU Cores ({count} total) "))
-                .title_style(theme::style_title())
-                .borders(Borders::ALL)
-                .border_style(theme::style_border()),
-        );
+    let table = Table::new(rows, constraints).block(
+        Block::default()
+            .title(format!(" CPU Cores ({count} total) "))
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
 
     f.render_widget(table, area);
 }
@@ -277,7 +280,8 @@ fn render_temperatures(f: &mut Frame, app: &App, area: Rect) {
             if idx < count {
                 let (label, temp, max, pct) = &sensors[idx];
                 let text = format!(" {label}: {temp:.1}°C (max {max:.1}°C)");
-                row_cells.push(Cell::from(text).style(Style::default().fg(theme::usage_color(*pct))));
+                row_cells
+                    .push(Cell::from(text).style(Style::default().fg(theme::usage_color(*pct))));
             } else {
                 row_cells.push(Cell::from(""));
             }
@@ -289,14 +293,13 @@ fn render_temperatures(f: &mut Frame, app: &App, area: Rect) {
         .map(|_| Constraint::Length(col_width as u16))
         .collect();
 
-    let table = Table::new(rows, constraints)
-        .block(
-            Block::default()
-                .title(format!(" Temperature Sensors ({count}) "))
-                .title_style(theme::style_title())
-                .borders(Borders::ALL)
-                .border_style(theme::style_border()),
-        );
+    let table = Table::new(rows, constraints).block(
+        Block::default()
+            .title(format!(" Temperature Sensors ({count}) "))
+            .title_style(theme::style_title())
+            .borders(Borders::ALL)
+            .border_style(theme::style_border()),
+    );
 
     f.render_widget(table, area);
 }
