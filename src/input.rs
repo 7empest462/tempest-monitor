@@ -1,9 +1,15 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::app::{ActiveTab, App, ProcessViewMode, ServiceInspectorMode, SortDirection, SortMode};
 use crate::power_mode::CpuPowerMode;
 
 pub fn handle_key(key: KeyEvent, app: &mut App) -> bool {
+    // Ignore key release events (which are sent by Crossterm on Windows by default)
+    // to prevent double-triggering of navigation and toggle actions.
+    if key.kind == KeyEventKind::Release {
+        return true;
+    }
+
     // ── Service Inspector takes priority ─────────────────────────────────
     if app.services.inspector_open {
         return handle_inspector_key(key, app);
