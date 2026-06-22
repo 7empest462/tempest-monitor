@@ -113,46 +113,66 @@ mod windows_impl {
 // ================================================================
 
 /// Returns the list of signals (or process actions) available on the current platform.
+#[cfg(unix)]
 pub fn get_signals() -> &'static [SignalInfo] {
-    #[cfg(unix)]
-    { &unix_impl::SIGNALS }
+    &unix_impl::SIGNALS
+}
 
-    #[cfg(windows)]
-    { &windows_impl::SIGNALS }
+/// Returns the list of signals (or process actions) available on the current platform.
+#[cfg(windows)]
+pub fn get_signals() -> &'static [SignalInfo] {
+    &windows_impl::SIGNALS
 }
 
 /// Terminate / send a signal to a process by PID and signal list index.
+#[cfg(unix)]
 pub fn kill_process(pid: Pid, signal_index: usize) {
-    #[cfg(unix)]
-    { unix_impl::kill_process(pid, signal_index); }
+    unix_impl::kill_process(pid, signal_index);
+}
 
-    #[cfg(windows)]
-    { windows_impl::kill_process(pid, signal_index); }
+/// Terminate / send a signal to a process by PID and signal list index.
+#[cfg(windows)]
+pub fn kill_process(pid: Pid, signal_index: usize) {
+    windows_impl::kill_process(pid, signal_index);
 }
 
 /// Check if the current user is running with elevated privileges (root on Unix, Administrator on Windows).
+#[cfg(unix)]
 pub fn is_running_as_admin() -> bool {
-    #[cfg(unix)]
-    { unix_impl::is_running_as_admin() }
+    unix_impl::is_running_as_admin()
+}
 
-    #[cfg(windows)]
-    { windows_impl::is_running_as_admin() }
+/// Check if the current user is running with elevated privileges (root on Unix, Administrator on Windows).
+#[cfg(windows)]
+pub fn is_running_as_admin() -> bool {
+    windows_impl::is_running_as_admin()
+}
 
-    #[cfg(not(any(unix, windows)))]
-    { false }
+/// Check if the current user is running with elevated privileges (root on Unix, Administrator on Windows).
+#[cfg(not(any(unix, windows)))]
+pub fn is_running_as_admin() -> bool {
+    false
 }
 
 /// Get the current user ID.
 /// On Unix this is the real UID. On Windows it returns 0 for admins, 1000 otherwise.
+#[cfg(unix)]
 pub fn get_current_uid() -> u32 {
-    #[cfg(unix)]
-    { unix_impl::get_current_uid() }
+    unix_impl::get_current_uid()
+}
 
-    #[cfg(windows)]
-    { windows_impl::get_current_uid() }
+/// Get the current user ID.
+/// On Unix this is the real UID. On Windows it returns 0 for admins, 1000 otherwise.
+#[cfg(windows)]
+pub fn get_current_uid() -> u32 {
+    windows_impl::get_current_uid()
+}
 
-    #[cfg(not(any(unix, windows)))]
-    { 1000 }
+/// Get the current user ID.
+/// On Unix this is the real UID. On Windows it returns 0 for admins, 1000 otherwise.
+#[cfg(not(any(unix, windows)))]
+pub fn get_current_uid() -> u32 {
+    1000
 }
 
 // Re-export shared types from system_helper for convenience
